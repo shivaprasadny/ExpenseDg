@@ -93,3 +93,25 @@ export async function deleteCategory(category: Category): Promise<void> {
     [category.id]
   );
 }
+/**
+ * Update an existing category.
+ */
+export async function updateCategory(
+  id: number,
+  name: string,
+  icon: string,
+  type: TransactionType
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE categories
+    SET name = ?,
+        icon = ?,
+        type = ?
+    WHERE id = ?
+    `,
+    [name.trim(), icon.trim() || "💰", type, id]
+  );
+}

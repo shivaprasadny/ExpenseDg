@@ -11,8 +11,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import SummaryCard from "../components/SummaryCard";
-import { COLORS } from "../constants/colors";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import {
   getCountByTypeAndPeriod,
@@ -20,13 +18,13 @@ import {
   getTotalByTypeAndPeriod,
   PeriodFilter,
 } from "../services/expenseService";
-
+import { getUserProfile } from "../services/profileService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
 /**
- * Home dashboard screen.
- * Shows income, expenses, balance and budget for selected period only.
+ * Modern Home dashboard.
+ * Shows period-based income, expenses, balance, and quick actions.
  */
 export default function HomeScreen({ navigation }: Props) {
   const [period, setPeriod] = useState<PeriodFilter>("MONTH");
@@ -35,13 +33,12 @@ export default function HomeScreen({ navigation }: Props) {
 
   const [totalIncome, setTotalIncome] = useState(0);
   const [totalExpense, setTotalExpense] = useState(0);
-
   const [expenseCount, setExpenseCount] = useState(0);
   const [incomeCount, setIncomeCount] = useState(0);
 
-  /**
-   * Reload home data when screen is focused or filter changes.
-   */
+  const [userName, setUserName] = useState("");
+  const [currencySymbol, setCurrencySymbol] = useState("$");
+
   useFocusEffect(
     useCallback(() => {
       loadHomeData();
@@ -49,46 +46,47 @@ export default function HomeScreen({ navigation }: Props) {
   );
 
   /**
-   * Load income/expense totals for selected period.
+   * Load dashboard data for selected period.
    */
   async function loadHomeData() {
+    const profile = await getUserProfile();
+
     const income = await getTotalByTypeAndPeriod("INCOME", period, anchorDate);
     const expense = await getTotalByTypeAndPeriod("EXPENSE", period, anchorDate);
 
+    const incCount = await getCountByTypeAndPeriod("INCOME", period, anchorDate);
     const expCount = await getCountByTypeAndPeriod(
       "EXPENSE",
       period,
       anchorDate
     );
 
-    const incCount = await getCountByTypeAndPeriod("INCOME", period, anchorDate);
-
-
+    setUserName(profile.userName);
+    setCurrencySymbol(profile.currencySymbol || "$");
 
     setTotalIncome(income);
     setTotalExpense(expense);
-    setExpenseCount(expCount);
     setIncomeCount(incCount);
-
+    setExpenseCount(expCount);
   }
 
   /**
-   * Move selected date backward/forward.
+   * Move selected period back or forward.
    */
   function movePeriod(direction: "PREV" | "NEXT") {
-    const newDate = new Date(anchorDate);
+    const nextDate = new Date(anchorDate);
     const amount = direction === "NEXT" ? 1 : -1;
 
-    if (period === "DAY") newDate.setDate(newDate.getDate() + amount);
-    if (period === "WEEK") newDate.setDate(newDate.getDate() + amount * 7);
-    if (period === "MONTH") newDate.setMonth(newDate.getMonth() + amount);
-    if (period === "YEAR") newDate.setFullYear(newDate.getFullYear() + amount);
+    if (period === "DAY") nextDate.setDate(nextDate.getDate() + amount);
+    if (period === "WEEK") nextDate.setDate(nextDate.getDate() + amount * 7);
+    if (period === "MONTH") nextDate.setMonth(nextDate.getMonth() + amount);
+    if (period === "YEAR") nextDate.setFullYear(nextDate.getFullYear() + amount);
 
-    setAnchorDate(newDate);
+    setAnchorDate(nextDate);
   }
 
   /**
-   * Display label for selected period.
+   * Display readable selected period.
    */
   function getPeriodLabel() {
     if (period === "DAY") return anchorDate.toLocaleDateString();
@@ -111,18 +109,49 @@ export default function HomeScreen({ navigation }: Props) {
     return String(anchorDate.getFullYear());
   }
 
+  /**
+   * Dynamic greeting based on current time.
+   */
+  function getGreeting() {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good Morning ☀️";
+    if (hour < 17) return "Good Afternoon 🌤️";
+    return "Good Evening 🌙";
+  }
+
   const balance = totalIncome - totalExpense;
 
+  const savingsRate =
+    totalIncome > 0 ? Math.max((balance / totalIncome) * 100, 0) : 0;
 
+  const totalActivity = incomeCount + expenseCount;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>ExpenseDG</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <View style={styles.headerTextBox}>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
 
-      <Text style={styles.subtitle}>
-        Track income, expenses and balance
-      </Text>
+          <Text style={styles.helloText}>
+            {userName ? `Hello ${userName} 👋` : "Welcome back 👋"}
+          </Text>
 
+          <Text style={styles.headerSubtitle}>
+            Your smart money dashboard
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => navigation.navigate("Settings")}
+        >
+          <Text style={styles.menuText}>☰</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Period Filter */}
       <View style={styles.filterRow}>
         {(["DAY", "WEEK", "MONTH", "YEAR"] as PeriodFilter[]).map((item) => (
           <TouchableOpacity
@@ -148,6 +177,7 @@ export default function HomeScreen({ navigation }: Props) {
         ))}
       </View>
 
+      {/* Date Navigation */}
       <View style={styles.periodNav}>
         <TouchableOpacity
           style={styles.navButton}
@@ -168,6 +198,7 @@ export default function HomeScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
+      {/* Date Picker */}
       {showPeriodPicker && (
         <>
           <DateTimePicker
@@ -196,112 +227,194 @@ export default function HomeScreen({ navigation }: Props) {
         </>
       )}
 
-      <SummaryCard title="Income" value={`$${totalIncome.toFixed(2)}`} />
+      {/* Main Balance Card */}
+      <View style={styles.balanceCard}>
+        <View style={styles.balanceTopRow}>
+          <Text style={styles.balanceLabel}>Net Balance</Text>
+          <Text style={styles.activityBadge}>{totalActivity} records</Text>
+        </View>
 
-      <SummaryCard title="Expenses" value={`$${totalExpense.toFixed(2)}`} />
+        <Text
+          style={[
+            styles.balanceAmount,
+            balance < 0 && styles.negativeBalance,
+          ]}
+        >
+          {currencySymbol}
+          {balance.toFixed(2)}
+        </Text>
 
-      <SummaryCard title="Balance" value={`$${balance.toFixed(2)}`} />
+        <Text style={styles.balanceSubText}>
+          Income minus expenses for selected period
+        </Text>
 
-      {period === "MONTH" && (
-        <>
-         
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Math.min(savingsRate, 100)}%`,
+              },
+            ]}
+          />
+        </View>
 
-        </>
-      )}
+        <Text style={styles.savingsText}>
+          Savings rate: {savingsRate.toFixed(0)}%
+        </Text>
+      </View>
 
-      <Text style={styles.smallStats}>
-        Expense records: {expenseCount} • Income records: {incomeCount}
-      </Text>
+      {/* Income / Expense Cards */}
+      <View style={styles.moneyRow}>
+        <View style={[styles.moneyCard, styles.incomeCard]}>
+          <Text style={styles.moneyIcon}>↗</Text>
+          <Text style={styles.moneyLabel}>Income</Text>
+          <Text style={styles.incomeAmount}>
+            {currencySymbol}
+            {totalIncome.toFixed(2)}
+          </Text>
+          <Text style={styles.recordText}>{incomeCount} records</Text>
+        </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("AddExpense")}
-      >
-        <Text style={styles.buttonText}>+ Add Income / Expense</Text>
-      </TouchableOpacity>
+        <View style={[styles.moneyCard, styles.expenseCard]}>
+          <Text style={styles.moneyIcon}>↘</Text>
+          <Text style={styles.moneyLabel}>Expenses</Text>
+          <Text style={styles.expenseAmount}>
+            {currencySymbol}
+            {totalExpense.toFixed(2)}
+          </Text>
+          <Text style={styles.recordText}>{expenseCount} records</Text>
+        </View>
+      </View>
 
-      <TouchableOpacity
-        style={styles.outlineButton}
-        onPress={() => navigation.navigate("Expenses")}
-      >
-        <Text style={styles.outlineButtonText}>View Records</Text>
-      </TouchableOpacity>
+      {/* Quote */}
+      <View style={styles.quoteCard}>
+        <Text style={styles.quoteText}>
+          “Track today. Understand tomorrow. Control your money.”
+        </Text>
+      </View>
 
-      <TouchableOpacity
-        style={styles.outlineButton}
-        onPress={() => navigation.navigate("Categories")}
-      >
-        <Text style={styles.outlineButtonText}>Manage Categories</Text>
-      </TouchableOpacity>
+      {/* Quick Actions */}
+      <Text style={styles.sectionTitle}>Quick Actions</Text>
 
-     
+      <View style={styles.actionsGrid}>
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => navigation.navigate("AddExpense")}
+        >
+          <Text style={styles.actionIcon}>＋</Text>
+          <Text style={styles.actionText}>Add Record</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.outlineButton}
-        onPress={() => navigation.navigate("Analytics")}
-      >
-        <Text style={styles.outlineButtonText}>Analytics</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => navigation.navigate("Expenses")}
+        >
+          <Text style={styles.actionIcon}>▣</Text>
+          <Text style={styles.actionText}>Records</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.outlineButton}
-        onPress={() => navigation.navigate("Settings")}
-      >
-        <Text style={styles.outlineButtonText}>Settings / Backup</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => navigation.navigate("Analytics")}
+        >
+          <Text style={styles.actionIcon}>◒</Text>
+          <Text style={styles.actionText}>Analytics</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => navigation.navigate("Categories")}
+        >
+          <Text style={styles.actionIcon}>⌁</Text>
+          <Text style={styles.actionText}>Categories</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#EEF6F2",
   },
   content: {
     padding: 20,
     paddingBottom: 140,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: COLORS.primary,
-    textAlign: "center",
-    marginTop: 30,
-  },
-  subtitle: {
-    marginTop: 8,
+
+  headerRow: {
+    marginTop: 28,
     marginBottom: 20,
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    textAlign: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
+  headerTextBox: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  greeting: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#071826",
+  },
+  helloText: {
+    marginTop: 4,
+    fontSize: 16,
+    color: "#0F766E",
+    fontWeight: "900",
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "700",
+  },
+  menuButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#CFE2DA",
+  },
+  menuText: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#071826",
+  },
+
   filterRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   filterChip: {
     flex: 1,
-    backgroundColor: COLORS.card,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
+    borderColor: "#CFE2DA",
+    borderRadius: 18,
     paddingVertical: 10,
     alignItems: "center",
   },
   filterChipSelected: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: "#0F766E",
+    borderColor: "#0F766E",
   },
   filterText: {
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+    fontWeight: "900",
+    color: "#334155",
     fontSize: 12,
   },
   filterTextSelected: {
     color: "#FFFFFF",
   },
+
   periodNav: {
     flexDirection: "row",
     alignItems: "center",
@@ -309,27 +422,27 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   navButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#CFE2DA",
     alignItems: "center",
     justifyContent: "center",
   },
   navButtonText: {
     fontSize: 28,
-    fontWeight: "800",
-    color: COLORS.primary,
+    fontWeight: "900",
+    color: "#0F766E",
   },
   periodLabel: {
     fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.primary,
+    fontWeight: "900",
+    color: "#071826",
   },
   doneButton: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: "#0F766E",
     padding: 12,
     borderRadius: 12,
     alignItems: "center",
@@ -337,44 +450,162 @@ const styles = StyleSheet.create({
   },
   doneButtonText: {
     color: "#FFFFFF",
+    fontWeight: "900",
+  },
+
+  balanceCard: {
+    backgroundColor: "#071826",
+    borderRadius: 30,
+    padding: 24,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#123344",
+  },
+  balanceTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  balanceLabel: {
+    color: "#A7F3D0",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  activityBadge: {
+    color: "#D1FAE5",
+    backgroundColor: "#0F3A36",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  balanceAmount: {
+    marginTop: 12,
+    color: "#FFFFFF",
+    fontSize: 44,
+    fontWeight: "900",
+  },
+  negativeBalance: {
+    color: "#FCA5A5",
+  },
+  balanceSubText: {
+    marginTop: 6,
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#263B4A",
+    marginTop: 22,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#14B8A6",
+  },
+  savingsText: {
+    marginTop: 10,
+    color: "#E2E8F0",
+    fontSize: 13,
     fontWeight: "800",
   },
-  warningText: {
-    color: COLORS.danger,
+
+  moneyRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  moneyCard: {
+    flex: 1,
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+  },
+  incomeCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  expenseCard: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  moneyIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+    color: "#071826",
+  },
+  moneyLabel: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  incomeAmount: {
+    marginTop: 6,
+    color: "#059669",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  expenseAmount: {
+    marginTop: 6,
+    color: "#DC2626",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  recordText: {
+    marginTop: 5,
+    color: "#64748B",
+    fontSize: 12,
     fontWeight: "800",
-    textAlign: "center",
+  },
+
+  quoteCard: {
+    backgroundColor: "#E0F2FE",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  quoteText: {
+    color: "#075985",
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 21,
+  },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#071826",
     marginBottom: 12,
   },
-  smallStats: {
-    textAlign: "center",
-    color: COLORS.textSecondary,
-    fontWeight: "700",
-    marginBottom: 20,
+  actionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
   },
-  button: {
-    backgroundColor: COLORS.accent,
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  buttonText: {
-    color: COLORS.card,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  outlineButton: {
+  actionCard: {
+    width: "48%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginBottom: 14,
+    borderColor: "#CFE2DA",
+    minHeight: 108,
+    justifyContent: "center",
   },
-  outlineButtonText: {
-    color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: "700",
+  actionIcon: {
+    fontSize: 30,
+    marginBottom: 10,
+    color: "#0F766E",
+  },
+  actionText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#071826",
   },
 });

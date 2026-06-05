@@ -122,3 +122,52 @@ export async function restoreBackup() {
     );
   }
 }
+/**
+ * Export all transactions as CSV and share the file.
+ */
+export async function exportCsv() {
+  const db = await dbPromise;
+
+  const rows = await db.getAllAsync<any>(`
+    SELECT
+      e.expenseDate,
+      e.type,
+      c.name as categoryName,
+      e.title,
+      e.amount,
+      e.paymentMethod,
+      e.note
+    FROM expenses e
+    LEFT JOIN categories c
+      ON c.id = e.categoryId
+    ORDER BY datetime(e.expenseDate) DESC
+  `);
+
+  const header =
+    "Date,Type,Category,Title,Amount,Payment Method,Note\n";
+
+  const csvRows = rows.map((row) => {
+    const date = new Date(row.expenseDate).toLocaleDateString();
+
+    return [
+      date,
+      row.type,
+      row.categoryName,
+      row.title,
+      row.amount,
+      row.paymentMethod,
+      row.note ?? "",
+    ]
+      .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+      .join(",");
+  });
+
+  const csvContent = header + csvRows.join("\n");
+
+  const fileName = `ExpenseDG_Export_${Date.now()}.csv`;
+  const fileUri = FileSystem.documentDirectory + fileName;
+
+  await FileSystem.writeAsStringAsync(fileUri, csvContent);
+
+  await Sharing.shareAsync(fileUri);
+}

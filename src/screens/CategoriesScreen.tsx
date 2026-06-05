@@ -16,19 +16,24 @@ import {
   addCategory,
   deleteCategory,
   getCategoriesByType,
+  updateCategory,
 } from "../services/categoryService";
 
 /**
  * Categories screen.
- * User can manage Expense and Income categories in one screen.
+ * User can add, edit, and delete Expense/Income categories.
  */
 export default function CategoriesScreen() {
   const [transactionType, setTransactionType] =
     useState<TransactionType>("EXPENSE");
 
   const [categories, setCategories] = useState<Category[]>([]);
+
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("💰");
+
+  const [editingCategory, setEditingCategory] =
+    useState<Category | null>(null);
 
   useEffect(() => {
     loadCategories();
@@ -43,23 +48,60 @@ export default function CategoriesScreen() {
   }
 
   /**
-   * Add category.
+   * Start editing selected category.
    */
-  async function handleAddCategory() {
+  function handleStartEdit(category: Category) {
+    setEditingCategory(category);
+    setName(category.name);
+    setIcon(category.icon);
+    setTransactionType(category.type);
+  }
+
+  /**
+   * Cancel edit mode.
+   */
+  function handleCancelEdit() {
+    setEditingCategory(null);
+    setName("");
+    setIcon("💰");
+  }
+
+  /**
+   * Add or update category.
+   */
+  async function handleSaveCategory() {
     if (!name.trim()) {
       Alert.alert("Missing name", "Please enter category name.");
       return;
     }
 
     try {
-      await addCategory(name.trim(), icon.trim() || "💰", transactionType);
+      if (editingCategory) {
+        await updateCategory(
+          editingCategory.id,
+          name.trim(),
+          icon.trim() || "💰",
+          transactionType
+        );
+
+        Alert.alert("Updated", "Category updated successfully.");
+      } else {
+        await addCategory(
+          name.trim(),
+          icon.trim() || "💰",
+          transactionType
+        );
+
+        Alert.alert("Added", "Category added successfully.");
+      }
 
       setName("");
       setIcon("💰");
+      setEditingCategory(null);
 
       await loadCategories();
     } catch {
-      Alert.alert("Error", "Could not add category.");
+      Alert.alert("Error", "Could not save category.");
     }
   }
 
@@ -93,6 +135,11 @@ export default function CategoriesScreen() {
    */
   async function handleDelete(category: Category) {
     await deleteCategory(category);
+
+    if (editingCategory?.id === category.id) {
+      handleCancelEdit();
+    }
+
     await loadCategories();
   }
 
@@ -107,7 +154,12 @@ export default function CategoriesScreen() {
             styles.chip,
             transactionType === "EXPENSE" && styles.chipSelected,
           ]}
-          onPress={() => setTransactionType("EXPENSE")}
+          onPress={() => {
+            setTransactionType("EXPENSE");
+            setEditingCategory(null);
+            setName("");
+            setIcon("💰");
+          }}
         >
           <Text
             style={
@@ -125,7 +177,12 @@ export default function CategoriesScreen() {
             styles.chip,
             transactionType === "INCOME" && styles.chipSelected,
           ]}
-          onPress={() => setTransactionType("INCOME")}
+          onPress={() => {
+            setTransactionType("INCOME");
+            setEditingCategory(null);
+            setName("");
+            setIcon("💰");
+          }}
         >
           <Text
             style={
@@ -138,6 +195,10 @@ export default function CategoriesScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.formTitle}>
+        {editingCategory ? "Edit Category" : "Add Category"}
+      </Text>
 
       <Text style={styles.label}>Icon</Text>
       <TextInput
@@ -157,9 +218,20 @@ export default function CategoriesScreen() {
         onChangeText={setName}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleAddCategory}>
-        <Text style={styles.buttonText}>Add Category</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSaveCategory}>
+        <Text style={styles.buttonText}>
+          {editingCategory ? "Update Category" : "Add Category"}
+        </Text>
       </TouchableOpacity>
+
+      {editingCategory && (
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={handleCancelEdit}
+        >
+          <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.sectionTitle}>
         {transactionType === "EXPENSE" ? "Expense" : "Income"} Categories
@@ -171,9 +243,15 @@ export default function CategoriesScreen() {
         scrollEnabled={false}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.categoryText}>
-              {item.icon} {item.name}
-            </Text>
+            <TouchableOpacity
+              style={styles.categoryInfo}
+              onPress={() => handleStartEdit(item)}
+            >
+              <Text style={styles.categoryText}>
+                {item.icon} {item.name}
+              </Text>
+              <Text style={styles.tapText}>Tap to edit</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity onPress={() => confirmDelete(item)}>
               <Text style={styles.deleteText}>Delete</Text>
@@ -191,6 +269,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: COLORS.primary,
     marginBottom: 20,
+  },
+  formTitle: {
+    marginTop: 24,
+    fontSize: 20,
+    fontWeight: "900",
+    color: COLORS.primary,
   },
   label: {
     marginTop: 14,
@@ -245,6 +329,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
   },
+  cancelButton: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  cancelButtonText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
   sectionTitle: {
     marginTop: 28,
     marginBottom: 12,
@@ -261,11 +359,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 12,
+  },
+  categoryInfo: {
+    flex: 1,
   },
   categoryText: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.textPrimary,
+  },
+  tapText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "600",
   },
   deleteText: {
     color: COLORS.danger,
