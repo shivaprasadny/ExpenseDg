@@ -1,20 +1,48 @@
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import AppScreen from "../components/AppScreen";
-import { AppTheme, getUserProfile, saveUserProfile } from "../services/profileService";
+import {
+  AppTheme,
+  getUserProfile,
+  saveUserProfile,
+} from "../services/profileService";
 import { useAppTheme } from "../context/ThemeContext";
+
+const currencyOptions = [
+  { label: "$ USD", value: "$" },
+  { label: "₹ INR", value: "₹" },
+  { label: "रु NPR", value: "रु" },
+  { label: "€ EUR", value: "€" },
+  { label: "£ GBP", value: "£" },
+  { label: "¥ JPY", value: "¥" },
+  { label: "S$ SGD", value: "S$" },
+  { label: "A$ AUD", value: "A$" },
+  { label: "C$ CAD", value: "C$" },
+];
 
 /**
  * Profile and theme screen.
  */
 export default function ProfileThemeScreen() {
+  const { colors, isDark, reloadTheme } = useAppTheme();
+  const styles = createStyles(colors, isDark);
+
   const [userName, setUserName] = useState("");
-  const [currencySymbol, setCurrencySymbol] = useState("$");
-  const [savingsGoal, setSavingsGoal] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [currencySymbol, setCurrencySymbol] = useState<string>("$");
   const [theme, setTheme] = useState<AppTheme>("SYSTEM");
 
-  const { reloadTheme } = useAppTheme();
+  const [showCustomCurrency, setShowCustomCurrency] = useState(false);
+  const [showCurrencyList, setShowCurrencyList] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -24,18 +52,18 @@ export default function ProfileThemeScreen() {
     const profile = await getUserProfile();
 
     setUserName(profile.userName);
-    setCurrencySymbol(profile.currencySymbol);
-    setSavingsGoal(String(profile.savingsGoal));
+    setNickname(profile.nickname ?? "");
+    setDateOfBirth(profile.dateOfBirth ?? "");
+    setCurrencySymbol(profile.currencySymbol || "$");
     setTheme(profile.theme);
   }
 
   async function handleSave() {
-    const goalNumber = Number(savingsGoal);
-
     await saveUserProfile({
       userName,
+      nickname,
+      dateOfBirth,
       currencySymbol,
-      savingsGoal: Number.isNaN(goalNumber) ? 0 : goalNumber,
       theme,
     });
 
@@ -51,30 +79,117 @@ export default function ProfileThemeScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>Your Name</Text>
-        <TextInput style={styles.input} placeholder="Enter your name" value={userName} onChangeText={setUserName} />
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your name"
+          placeholderTextColor={colors.textSecondary}
+          value={userName}
+          onChangeText={setUserName}
+        />
 
-        <Text style={styles.label}>Currency Symbol</Text>
-        <TextInput style={styles.input} placeholder="$" value={currencySymbol} onChangeText={setCurrencySymbol} maxLength={3} />
+        <Text style={styles.label}>Nickname</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Example: Shiva"
+          placeholderTextColor={colors.textSecondary}
+          value={nickname}
+          onChangeText={setNickname}
+        />
 
-        <Text style={styles.label}>Savings Goal</Text>
-        <TextInput style={styles.input} placeholder="1000" keyboardType="decimal-pad" value={savingsGoal} onChangeText={setSavingsGoal} />
+        <Text style={styles.label}>Date of Birth</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={colors.textSecondary}
+          value={dateOfBirth}
+          onChangeText={setDateOfBirth}
+        />
+
+        
+<Text style={styles.label}>Currency</Text>
+
+<TouchableOpacity
+  style={styles.selectorButton}
+  onPress={() => setShowCurrencyList(!showCurrencyList)}
+>
+  <Text style={styles.selectorText}>
+    {currencySymbol}
+  </Text>
+
+  <Text style={styles.selectorArrow}>
+    {showCurrencyList ? "▲" : "▼"}
+  </Text>
+</TouchableOpacity>
+
+{showCurrencyList && (
+  <View style={styles.listCard}>
+    {currencyOptions.map((item) => (
+      <TouchableOpacity
+        key={item.value}
+        style={styles.listRow}
+        onPress={() => {
+          setCurrencySymbol(item.value);
+          setShowCurrencyList(false);
+          setShowCustomCurrency(false);
+        }}
+      >
+        <Text style={styles.listText}>
+          {item.label}
+        </Text>
+
+        {currencySymbol === item.value && (
+          <Text style={styles.checkMark}>✓</Text>
+        )}
+      </TouchableOpacity>
+    ))}
+
+    <TouchableOpacity
+      style={styles.listRow}
+      onPress={() => {
+        setShowCustomCurrency(true);
+        setShowCurrencyList(false);
+      }}
+    >
+      <Text style={styles.listText}>
+        Custom Currency
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
 
         <Text style={styles.label}>Theme</Text>
         <View style={styles.themeRow}>
           {(["LIGHT", "DARK", "SYSTEM"] as AppTheme[]).map((item) => (
             <TouchableOpacity
               key={item}
-              style={[styles.themeChip, theme === item && styles.themeChipSelected]}
+              activeOpacity={0.85}
+              style={[
+                styles.themeChip,
+                theme === item && styles.themeChipSelected,
+              ]}
               onPress={() => setTheme(item)}
             >
-              <Text style={[styles.themeChipText, theme === item && styles.themeChipTextSelected]}>
-                {item === "LIGHT" ? "Light" : item === "DARK" ? "Dark" : "System"}
+              <Text
+                style={[
+                  styles.themeChipText,
+                  theme === item && styles.themeChipTextSelected,
+                ]}
+              >
+                {item === "LIGHT"
+                  ? "Light"
+                  : item === "DARK"
+                  ? "Dark"
+                  : "System"}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.primaryButton}
+          onPress={handleSave}
+        >
           <Text style={styles.primaryButtonText}>Save Changes</Text>
         </TouchableOpacity>
       </View>
@@ -82,17 +197,162 @@ export default function ProfileThemeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  title: { fontSize: 32, fontWeight: "900", color: "#071826" },
-  subtitle: { marginTop: 4, marginBottom: 20, fontSize: 14, fontWeight: "700", color: "#64748B" },
-  card: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#DDE7E2", borderRadius: 24, padding: 18 },
-  label: { marginTop: 12, marginBottom: 8, fontSize: 14, fontWeight: "800", color: "#334155" },
-  input: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 14, padding: 14, fontSize: 16, color: "#071826" },
-  themeRow: { flexDirection: "row", gap: 10, marginTop: 6, marginBottom: 18 },
-  themeChip: { flex: 1, padding: 13, borderRadius: 14, borderWidth: 1, borderColor: "#CBD5E1", alignItems: "center", backgroundColor: "#F8FAFC" },
-  themeChipSelected: { backgroundColor: "#0F766E", borderColor: "#0F766E" },
-  themeChipText: { fontWeight: "900", color: "#334155", fontSize: 13 },
-  themeChipTextSelected: { color: "#FFFFFF" },
-  primaryButton: { backgroundColor: "#0F766E", padding: 16, borderRadius: 16, alignItems: "center" },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "900", fontSize: 16 },
-});
+function createStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    title: {
+      fontSize: 32,
+      fontWeight: "900",
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      marginTop: 4,
+      marginBottom: 20,
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 18,
+    },
+    label: {
+      marginTop: 12,
+      marginBottom: 8,
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    input: {
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+
+    currencyGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 12,
+    },
+    currencyChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+      marginBottom: 10,
+    },
+    currencyChipSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    currencyChipText: {
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    currencyChipTextSelected: {
+      color: "#FFFFFF",
+    },
+
+    themeRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 6,
+      marginBottom: 18,
+    },
+    themeChip: {
+      flex: 1,
+      padding: 13,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+    },
+    themeChipSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    themeChipText: {
+      fontWeight: "900",
+      color: colors.textPrimary,
+      fontSize: 13,
+    },
+    themeChipTextSelected: {
+      color: "#FFFFFF",
+    },
+    primaryButton: {
+      backgroundColor: colors.accent,
+      padding: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      marginTop: 4,
+    },
+    primaryButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "900",
+      fontSize: 16,
+    },
+    listCard: {
+  backgroundColor: colors.card,
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: 16,
+  overflow: "hidden",
+},
+
+listRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  paddingVertical: 14,
+  paddingHorizontal: 16,
+  borderBottomWidth: 1,
+  borderBottomColor: colors.border,
+},
+
+listText: {
+  fontSize: 15,
+  fontWeight: "700",
+  color: colors.textPrimary,
+},
+
+checkMark: {
+  fontSize: 18,
+  fontWeight: "900",
+  color: colors.accent,
+},
+selectorButton: {
+  backgroundColor: isDark ? "#020617" : "#F8FAFC",
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: 14,
+  padding: 14,
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+},
+
+selectorText: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: colors.textPrimary,
+},
+
+selectorArrow: {
+  fontSize: 14,
+  fontWeight: "900",
+  color: colors.accent,
+},
+
+
+  });
+}

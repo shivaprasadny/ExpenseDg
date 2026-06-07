@@ -4,8 +4,9 @@ export type AppTheme = "LIGHT" | "DARK" | "SYSTEM";
 
 export interface UserProfile {
   userName: string;
+  nickname: string;
+  dateOfBirth: string;
   currencySymbol: string;
-  savingsGoal: number;
   theme: AppTheme;
 }
 
@@ -15,12 +16,13 @@ export interface UserProfile {
 export async function getUserProfile(): Promise<UserProfile> {
   const db = await dbPromise;
 
-  const result = await db.getFirstAsync<UserProfile>(
+  const result = await db.getFirstAsync<any>(
     `
     SELECT
       userName,
+      nickname,
+      dateOfBirth,
       currencySymbol,
-      savingsGoal,
       theme
     FROM profile
     WHERE id = 1
@@ -29,8 +31,9 @@ export async function getUserProfile(): Promise<UserProfile> {
 
   return {
     userName: result?.userName ?? "",
+    nickname: result?.nickname ?? "",
+    dateOfBirth: result?.dateOfBirth ?? "",
     currencySymbol: result?.currencySymbol ?? "$",
-    savingsGoal: result?.savingsGoal ?? 0,
     theme: result?.theme ?? "SYSTEM",
   };
 }
@@ -38,19 +41,37 @@ export async function getUserProfile(): Promise<UserProfile> {
 /**
  * Save user profile into SQLite.
  */
-export async function saveUserProfile(profile: UserProfile): Promise<void> {
+export async function saveUserProfile(
+  profile: UserProfile
+): Promise<void> {
   const db = await dbPromise;
 
   await db.runAsync(
     `
     INSERT OR REPLACE INTO profile
-    (id, userName, currencySymbol, savingsGoal, theme)
-    VALUES (1, ?, ?, ?, ?)
+    (
+      id,
+      userName,
+      nickname,
+      dateOfBirth,
+      currencySymbol,
+      theme
+    )
+    VALUES
+    (
+      1,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?
+    )
     `,
     [
       profile.userName.trim(),
+      profile.nickname.trim(),
+      profile.dateOfBirth,
       profile.currencySymbol.trim() || "$",
-      profile.savingsGoal,
       profile.theme,
     ]
   );

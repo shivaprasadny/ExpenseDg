@@ -36,11 +36,13 @@ export async function initDatabase() {
       monthlyBudget REAL NOT NULL DEFAULT 0
     );
 
-    CREATE TABLE IF NOT EXISTS profile (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      userName TEXT NOT NULL DEFAULT '',
-      currencySymbol TEXT NOT NULL DEFAULT '$',
-      savingsGoal REAL NOT NULL DEFAULT 0
+   CREATE TABLE IF NOT EXISTS profile (
+  id INTEGER PRIMARY KEY,
+  userName TEXT,
+  nickname TEXT DEFAULT '',
+  dateOfBirth TEXT DEFAULT '',
+  currencySymbol TEXT,
+  theme TEXT DEFAULT 'SYSTEM'
     );
   `);
 
@@ -80,6 +82,17 @@ try {
 try {
   await db.execAsync(`
     ALTER TABLE expenses ADD COLUMN isRecurring INTEGER DEFAULT 0;
+  `);
+} catch {}
+try {
+  await db.execAsync(`
+    ALTER TABLE profile ADD COLUMN nickname TEXT DEFAULT '';
+  `);
+} catch {}
+
+try {
+  await db.execAsync(`
+    ALTER TABLE profile ADD COLUMN dateOfBirth TEXT DEFAULT '';
   `);
 } catch {}
 
