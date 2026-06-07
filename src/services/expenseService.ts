@@ -258,3 +258,85 @@ export async function getCategoryAnalyticsByPeriod(
     [startDate, endDate, type, type]
   );
 }
+/**
+ * Get all income and expense records for selected period.
+ */
+export async function getAllRecordsByPeriod(
+  period: PeriodFilter,
+  anchorDate: Date
+): Promise<ExpenseListItem[]> {
+  const db = await dbPromise;
+  const { startDate, endDate } = getDateRange(period, anchorDate);
+
+  return await db.getAllAsync<ExpenseListItem>(
+    `
+    SELECT
+      e.id,
+      e.title,
+      e.amount,
+      e.paymentMethod,
+      e.note,
+      e.expenseDate,
+      e.type,
+      c.name as categoryName,
+      c.icon as categoryIcon
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
+    ORDER BY datetime(e.expenseDate) DESC
+    `,
+    [startDate, endDate]
+  );
+}
+/**
+ * Category analytics for ALL records.
+ */
+export async function getAllCategoryAnalyticsByPeriod(
+  period: PeriodFilter,
+  anchorDate: Date
+) {
+  const db = await dbPromise;
+  const { startDate, endDate } = getDateRange(period, anchorDate);
+
+  return await db.getAllAsync(
+    `
+    SELECT
+      c.name,
+      c.icon,
+      c.type,
+      COALESCE(SUM(e.amount), 0) as total
+    FROM categories c
+    LEFT JOIN expenses e
+      ON c.id = e.categoryId
+      AND datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
+    GROUP BY c.id
+    HAVING total > 0
+    ORDER BY total DESC
+    `,
+    [startDate, endDate]
+  );
+}
+
+/**
+ * Last 6 months income/expense trend.
+ */
+export async function getSixMonthTrend(anchorDate: Date) {
+  const months = [];
+
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date(anchorDate);
+    date.setMonth(anchorDate.getMonth() - i);
+
+    const income = await getTotalByTypeAndPeriod("INCOME", "MONTH", date);
+    const expense = await getTotalByTypeAndPeriod("EXPENSE", "MONTH", date);
+
+    months.push({
+      label: date.toLocaleString("default", { month: "short" }),
+      income,
+      expense,
+      balance: income - expense,
+    });
+  }
+
+  return months;
+}

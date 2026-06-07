@@ -6,6 +6,7 @@ import { dbPromise, resetDatabase } from "../database/db";
 
 /**
  * Create JSON backup and share it.
+ * This keeps app data exactly as-is.
  */
 export async function createBackup() {
   const db = await dbPromise;
@@ -13,14 +14,16 @@ export async function createBackup() {
   const categories = await db.getAllAsync("SELECT * FROM categories");
   const expenses = await db.getAllAsync("SELECT * FROM expenses");
   const settings = await db.getAllAsync("SELECT * FROM settings");
+  const profile = await db.getAllAsync("SELECT * FROM profile");
 
   const backup = {
     appName: "ExpenseDG",
-    version: 1,
+    version: 2,
     createdAt: new Date().toISOString(),
     categories,
     expenses,
     settings,
+    profile,
   };
 
   const fileName = `ExpenseDG_Backup_${Date.now()}.json`;
@@ -48,9 +51,7 @@ export async function restoreBackup() {
   }
 
   const fileUri = result.assets[0].uri;
-
   const fileContent = await FileSystem.readAsStringAsync(fileUri);
-
   const backup = JSON.parse(fileContent);
 
   if (!backup.categories || !backup.expenses) {
@@ -62,36 +63,55 @@ export async function restoreBackup() {
   await resetDatabase();
 
   /**
-   * Clear default categories after reset.
-   * Then restore exact backup categories.
+   * Clear default rows after reset.
+   * Then restore exact backup rows.
    */
   await db.execAsync(`
     DELETE FROM expenses;
     DELETE FROM categories;
     DELETE FROM settings;
+    DELETE FROM profile;
   `);
 
+  /**
+   * Restore categories with type.
+   */
   for (const category of backup.categories) {
     await db.runAsync(
       `
-      INSERT INTO categories (id, name, icon, createdAt)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO categories
+      (id, name, icon, type, createdAt)
+      VALUES (?, ?, ?, ?, ?)
       `,
       [
         category.id,
         category.name,
         category.icon,
+        category.type ?? "EXPENSE",
         category.createdAt ?? new Date().toISOString(),
       ]
     );
   }
 
+  /**
+   * Restore transactions with type.
+   */
   for (const expense of backup.expenses) {
     await db.runAsync(
       `
       INSERT INTO expenses
-      (id, title, amount, categoryId, paymentMethod, note, expenseDate, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (
+        id,
+        title,
+        amount,
+        categoryId,
+        paymentMethod,
+        note,
+        expenseDate,
+        createdAt,
+        type
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         expense.id,
@@ -102,10 +122,14 @@ export async function restoreBackup() {
         expense.note ?? "",
         expense.expenseDate,
         expense.createdAt ?? new Date().toISOString(),
+        expense.type ?? "EXPENSE",
       ]
     );
   }
 
+  /**
+   * Restore settings.
+   */
   if (backup.settings && backup.settings.length > 0) {
     for (const setting of backup.settings) {
       await db.runAsync(
@@ -121,7 +145,37 @@ export async function restoreBackup() {
       "INSERT OR IGNORE INTO settings (id, monthlyBudget) VALUES (1, 0)"
     );
   }
+
+  /**
+   * Restore profile if backup has it.
+   */
+  if (backup.profile && backup.profile.length > 0) {
+    for (const profile of backup.profile) {
+      await db.runAsync(
+        `
+        INSERT INTO profile
+        (id, userName, currencySymbol, savingsGoal)
+        VALUES (?, ?, ?, ?)
+        `,
+        [
+          profile.id ?? 1,
+          profile.userName ?? "",
+          profile.currencySymbol ?? "$",
+          profile.savingsGoal ?? 0,
+        ]
+      );
+    }
+  } else {
+    await db.runAsync(
+      `
+      INSERT OR IGNORE INTO profile
+      (id, userName, currencySymbol, savingsGoal)
+      VALUES (1, '', '$', 0)
+      `
+    );
+  }
 }
+
 /**
  * Export all transactions as CSV and share the file.
  */

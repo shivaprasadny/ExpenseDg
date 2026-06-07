@@ -130,26 +130,38 @@ export default function HomeScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/* Header */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerTextBox}>
-          <Text style={styles.greeting}>{getGreeting()}</Text>
+     
+     <View style={styles.headerRow}>
+  <View style={styles.headerTextBox}>
+    <Text style={styles.greeting}>{getGreeting()}</Text>
 
-          <Text style={styles.helloText}>
-            {userName ? `Hello ${userName} 👋` : "Welcome back 👋"}
-          </Text>
+    <Text style={styles.helloText}>
+      {userName ? `Hello ${userName} 👋` : "Welcome back 👋"}
+    </Text>
 
-          <Text style={styles.headerSubtitle}>
-            Your smart money dashboard
-          </Text>
-        </View>
+    <Text style={styles.headerSubtitle}>
+      Your smart money dashboard
+    </Text>
+  </View>
 
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.navigate("Settings")}
-        >
-          <Text style={styles.menuText}>☰</Text>
-        </TouchableOpacity>
-      </View>
+  <View style={styles.headerActions}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.addTopButton}
+      onPress={() => navigation.navigate("AddExpense")}
+    >
+      <Text style={styles.addTopButtonText}>＋</Text>
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.menuButton}
+      onPress={() => navigation.navigate("Settings")}
+    >
+      <Text style={styles.menuText}>☰</Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
       {/* Period Filter */}
       <View style={styles.filterRow}>
@@ -265,27 +277,51 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       {/* Income / Expense Cards */}
-      <View style={styles.moneyRow}>
-        <View style={[styles.moneyCard, styles.incomeCard]}>
-          <Text style={styles.moneyIcon}>↗</Text>
-          <Text style={styles.moneyLabel}>Income</Text>
-          <Text style={styles.incomeAmount}>
-            {currencySymbol}
-            {totalIncome.toFixed(2)}
-          </Text>
-          <Text style={styles.recordText}>{incomeCount} records</Text>
-        </View>
+<View style={styles.moneyRow}>
+  <TouchableOpacity
+  activeOpacity={0.8}
+    style={[styles.moneyCard, styles.incomeCard]}
+    onPress={() =>
+      navigation.navigate("Expenses", {
+        defaultType: "INCOME",
+      })
+    }
+  >
+    <Text style={styles.moneyIcon}>↗</Text>
+    <Text style={styles.moneyLabel}>Income</Text>
 
-        <View style={[styles.moneyCard, styles.expenseCard]}>
-          <Text style={styles.moneyIcon}>↘</Text>
-          <Text style={styles.moneyLabel}>Expenses</Text>
-          <Text style={styles.expenseAmount}>
-            {currencySymbol}
-            {totalExpense.toFixed(2)}
-          </Text>
-          <Text style={styles.recordText}>{expenseCount} records</Text>
-        </View>
-      </View>
+    <Text style={styles.incomeAmount}>
+      {currencySymbol}
+      {totalIncome.toFixed(2)}
+    </Text>
+
+    <Text style={styles.recordText}>
+      {incomeCount} records
+    </Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+  activeOpacity={0.8}
+    style={[styles.moneyCard, styles.expenseCard]}
+    onPress={() =>
+      navigation.navigate("Expenses", {
+        defaultType: "EXPENSE",
+      })
+    }
+  >
+    <Text style={styles.moneyIcon}>↘</Text>
+    <Text style={styles.moneyLabel}>Expenses</Text>
+
+    <Text style={styles.expenseAmount}>
+      {currencySymbol}
+      {totalExpense.toFixed(2)}
+    </Text>
+
+    <Text style={styles.recordText}>
+      {expenseCount} records
+    </Text>
+  </TouchableOpacity>
+</View>
 
       {/* Quote */}
       <View style={styles.quoteCard}>
@@ -608,4 +644,29 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#071826",
   },
+  headerActions: {
+  flexDirection: "row",
+  gap: 10,
+},
+
+addTopButton: {
+  width: 46,
+  height: 46,
+  borderRadius: 23,
+  backgroundColor: "#0F766E",
+  alignItems: "center",
+  justifyContent: "center",
+  shadowColor: "#0F766E",
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.25,
+  shadowRadius: 12,
+  elevation: 6,
+},
+
+addTopButtonText: {
+  color: "#FFFFFF",
+  fontSize: 28,
+  fontWeight: "900",
+  marginTop: -2,
+},
 });

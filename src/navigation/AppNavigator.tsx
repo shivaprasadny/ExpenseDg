@@ -18,7 +18,11 @@ import AnalyticsScreen from "../screens/AnalyticsScreen";
 export type RootStackParamList = {
   Home: undefined;
   AddExpense: undefined;
-  Expenses: undefined;
+  Expenses:
+  | {
+      defaultType?: "EXPENSE" | "INCOME";
+    }
+  | undefined;
   Categories: undefined;
   Settings: undefined;
   Budget: undefined;
