@@ -17,8 +17,10 @@ import {
   getDateRange,
   getTotalByTypeAndPeriod,
   PeriodFilter,
+  getExpenseStreak,
 } from "../services/expenseService";
 import { getUserProfile } from "../services/profileService";
+import { getSmartInsights } from "../services/insightService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -30,6 +32,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [period, setPeriod] = useState<PeriodFilter>("MONTH");
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
+  const [insights, setInsights] = useState<string[]>([]);
 
   const [totalIncome, setTotalIncome] = useState(0);
   const [totalExpense, setTotalExpense] = useState(0);
@@ -38,6 +41,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const [userName, setUserName] = useState("");
   const [currencySymbol, setCurrencySymbol] = useState("$");
+  const [streak, setStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,9 +54,12 @@ export default function HomeScreen({ navigation }: Props) {
    */
   async function loadHomeData() {
     const profile = await getUserProfile();
-
+const currentStreak = await getExpenseStreak();
+setStreak(currentStreak);
     const income = await getTotalByTypeAndPeriod("INCOME", period, anchorDate);
     const expense = await getTotalByTypeAndPeriod("EXPENSE", period, anchorDate);
+    const smartInsights = await getSmartInsights();
+setInsights(smartInsights);
 
     const incCount = await getCountByTypeAndPeriod("INCOME", period, anchorDate);
     const expCount = await getCountByTypeAndPeriod(
@@ -321,6 +328,34 @@ export default function HomeScreen({ navigation }: Props) {
       {expenseCount} records
     </Text>
   </TouchableOpacity>
+</View>
+
+
+{/* streak card */}
+
+<View style={styles.streakCard}>
+  <View>
+    <Text style={styles.streakLabel}>Expense Streak</Text>
+    <Text style={styles.streakText}>
+      🔥 {streak} day{streak === 1 ? "" : "s"}
+    </Text>
+  </View>
+
+  <Text style={styles.streakSubText}>
+    Keep tracking daily
+  </Text>
+</View>
+
+
+{/* insightCard */}
+<View style={styles.insightCard}>
+  <Text style={styles.insightTitle}>💡 Smart Insights</Text>
+
+  {insights.map((item, index) => (
+    <Text key={index} style={styles.insightText}>
+      • {item}
+    </Text>
+  ))}
 </View>
 
       {/* Quote */}
@@ -668,5 +703,56 @@ addTopButtonText: {
   fontSize: 28,
   fontWeight: "900",
   marginTop: -2,
+},
+streakCard: {
+  backgroundColor: "#FFF7ED",
+  borderWidth: 1,
+  borderColor: "#FED7AA",
+  borderRadius: 22,
+  padding: 18,
+  marginBottom: 16,
+},
+
+streakLabel: {
+  fontSize: 13,
+  fontWeight: "900",
+  color: "#9A3412",
+},
+
+streakText: {
+  marginTop: 6,
+  fontSize: 24,
+  fontWeight: "900",
+  color: "#EA580C",
+},
+
+streakSubText: {
+  marginTop: 6,
+  fontSize: 13,
+  fontWeight: "700",
+  color: "#C2410C",
+},
+insightCard: {
+  backgroundColor: "#EFF6FF",
+  borderWidth: 1,
+  borderColor: "#BFDBFE",
+  borderRadius: 22,
+  padding: 18,
+  marginBottom: 16,
+},
+
+insightTitle: {
+  fontSize: 16,
+  fontWeight: "900",
+  color: "#1E3A8A",
+  marginBottom: 10,
+},
+
+insightText: {
+  fontSize: 14,
+  fontWeight: "700",
+  color: "#1E40AF",
+  lineHeight: 22,
+  marginBottom: 6,
 },
 });

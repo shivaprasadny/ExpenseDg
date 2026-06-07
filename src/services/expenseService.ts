@@ -340,3 +340,38 @@ export async function getSixMonthTrend(anchorDate: Date) {
 
   return months;
 }
+/**
+ * Calculate current daily logging streak.
+ * Counts how many consecutive days have at least one record.
+ */
+export async function getExpenseStreak(): Promise<number> {
+  const db = await dbPromise;
+
+  const rows = await db.getAllAsync<{ expenseDate: string }>(
+    `
+    SELECT DISTINCT date(expenseDate) as expenseDate
+    FROM expenses
+    ORDER BY date(expenseDate) DESC
+    `
+  );
+
+  const loggedDates = new Set(
+    rows.map((row) => row.expenseDate)
+  );
+
+  let streak = 0;
+  const currentDate = new Date();
+
+  while (true) {
+    const dateKey = currentDate.toISOString().split("T")[0];
+
+    if (loggedDates.has(dateKey)) {
+      streak += 1;
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
