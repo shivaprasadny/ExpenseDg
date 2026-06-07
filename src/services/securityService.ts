@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { dbPromise } from "../database/db";
 
 const PIN_ENABLED_KEY = "EXPENSEDG_PIN_ENABLED";
 const PIN_CODE_KEY = "EXPENSEDG_PIN_CODE";
@@ -40,4 +41,22 @@ export async function verifyPin(pin: string): Promise<boolean> {
  */
 export async function changePin(newPin: string): Promise<void> {
   await AsyncStorage.setItem(PIN_CODE_KEY, newPin);
+}
+export async function savePinHint(hint: string) {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `UPDATE profile SET pinHint = ? WHERE id = 1`,
+    [hint.trim()]
+  );
+}
+
+export async function getPinHint(): Promise<string> {
+  const db = await dbPromise;
+
+  const result: any = await db.getFirstAsync(
+    `SELECT pinHint FROM profile WHERE id = 1`
+  );
+
+  return result?.pinHint ?? "";
 }

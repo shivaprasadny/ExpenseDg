@@ -1,30 +1,57 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
 import { useAppTheme } from "../context/ThemeContext";
-import { verifyPin } from "../services/securityService";
+import { getPinHint, verifyPin } from "../services/securityService";
 
 type Props = {
   onUnlocked: () => void;
 };
 
 /**
- * Lock screen shown when PIN lock is enabled.
+ * LockScreen
+ *
+ * Shows before the app opens when PIN lock is enabled.
+ * User enters PIN to unlock the app.
+ * PIN hint is hidden until user taps "Show Hint".
  */
 export default function LockScreen({ onUnlocked }: Props) {
   const { colors, isDark } = useAppTheme();
   const styles = createStyles(colors, isDark);
 
   const [pin, setPin] = useState("");
+  const [pinHint, setPinHint] = useState("");
+  const [showHint, setShowHint] = useState(false);
 
+  useEffect(() => {
+    loadHint();
+  }, []);
+
+  /**
+   * Load saved PIN hint from SQLite.
+   */
+  async function loadHint() {
+    const hint = await getPinHint();
+    setPinHint(hint);
+  }
+
+  /**
+   * Verify entered PIN.
+   */
   async function handleUnlock() {
+    Keyboard.dismiss();
+
     if (pin.length !== 4) {
       Alert.alert("Invalid PIN", "Please enter your 4-digit PIN.");
       return;
@@ -43,31 +70,73 @@ export default function LockScreen({ onUnlocked }: Props) {
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.card}>
-        <Text style={styles.icon}>🔒</Text>
-        <Text style={styles.title}>ExpenseDG Locked</Text>
-        <Text style={styles.subtitle}>Enter your 4-digit PIN to continue</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+      >
+        <View style={styles.card}>
+          <Text style={styles.icon}>🔒</Text>
 
-        <TextInput
-          style={styles.input}
-          value={pin}
-          onChangeText={setPin}
-          keyboardType="number-pad"
-          secureTextEntry
-          maxLength={4}
-          placeholder="••••"
-          placeholderTextColor={colors.textSecondary}
-        />
+          <Text style={styles.title}>ExpenseDG Locked</Text>
 
-        <TouchableOpacity style={styles.button} onPress={handleUnlock}>
-          <Text style={styles.buttonText}>Unlock</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <Text style={styles.subtitle}>
+            Enter your 4-digit PIN to continue
+          </Text>
+
+          {/* Hint is hidden until user taps Show Hint */}
+          {pinHint.trim().length > 0 && (
+            <>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.hintButton}
+                onPress={() => setShowHint(!showHint)}
+              >
+                <Text style={styles.hintButtonText}>
+                  {showHint ? "Hide Hint" : "Show Hint"}
+                </Text>
+              </TouchableOpacity>
+
+              {showHint && (
+                <View style={styles.hintBox}>
+                  <Text style={styles.hintLabel}>PIN Hint</Text>
+                  <Text style={styles.hintText}>{pinHint}</Text>
+                </View>
+              )}
+            </>
+          )}
+
+          <TextInput
+            style={styles.input}
+            value={pin}
+            onChangeText={setPin}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={4}
+            placeholder="••••"
+            placeholderTextColor={colors.textSecondary}
+            returnKeyType="done"
+            onSubmitEditing={handleUnlock}
+            blurOnSubmit
+          />
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.button}
+            onPress={handleUnlock}
+          >
+            <Text style={styles.buttonText}>Unlock</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
+/**
+ * Theme-aware styles.
+ */
 function createStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     screen: {
@@ -96,12 +165,48 @@ function createStyles(colors: any, isDark: boolean) {
     },
     subtitle: {
       marginTop: 6,
-      marginBottom: 22,
+      marginBottom: 14,
       fontSize: 14,
       fontWeight: "700",
       color: colors.textSecondary,
       textAlign: "center",
     },
+
+    hintButton: {
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: 14,
+    },
+    hintButtonText: {
+      color: colors.accent,
+      fontWeight: "900",
+      fontSize: 13,
+    },
+    hintBox: {
+      width: "100%",
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 18,
+    },
+    hintLabel: {
+      fontSize: 12,
+      fontWeight: "900",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    hintText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+
     input: {
       width: "100%",
       backgroundColor: isDark ? "#020617" : "#F8FAFC",

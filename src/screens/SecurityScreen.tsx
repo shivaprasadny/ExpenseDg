@@ -21,6 +21,8 @@ import {
   enablePin,
   isPinEnabled,
   verifyPin,
+  savePinHint,
+  getPinHint,
 } from "../services/securityService";
 
 /**
@@ -37,10 +39,11 @@ export default function SecurityScreen() {
   const styles = createStyles(colors, isDark);
 
   const [pinEnabled, setPinEnabled] = useState(false);
-
+const [savedHint, setSavedHint] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [oldPin, setOldPin] = useState("");
+  const [pinHint, setPinHint] = useState("");
 
   useEffect(() => {
     loadStatus();
@@ -49,11 +52,14 @@ export default function SecurityScreen() {
   /**
    * Check if PIN is already enabled.
    */
-  async function loadStatus() {
-    const enabled = await isPinEnabled();
-    setPinEnabled(enabled);
-  }
+async function loadStatus() {
+  const enabled = await isPinEnabled();
+  const hint = await getPinHint();
 
+  setPinEnabled(enabled);
+  setPinHint(hint);
+  setSavedHint(hint);
+}
   /**
    * Validate PIN format.
    */
@@ -74,6 +80,9 @@ export default function SecurityScreen() {
    * Enable PIN lock.
    */
   async function handleEnablePin() {
+
+    await enablePin(pin);
+await savePinHint(pinHint);
     if (!isValidPin(pin)) {
       Alert.alert("Invalid PIN", "PIN must be exactly 4 digits.");
       return;
@@ -161,6 +170,14 @@ export default function SecurityScreen() {
     ]);
   }
 
+  async function handleUpdateHint() {
+  await savePinHint(pinHint);
+
+  setSavedHint(pinHint);
+
+  Alert.alert("Saved", "PIN hint updated.");
+}
+
   return (
     <AppScreen>
       <Text style={styles.title}>Security</Text>
@@ -218,6 +235,25 @@ export default function SecurityScreen() {
           placeholder="••••"
           placeholderTextColor={colors.textSecondary}
         />
+
+        <Text style={styles.label}>PIN Hint (Optional)</Text>
+
+<TextInput
+  style={styles.input}
+  placeholder="My lucky number"
+  value={pinHint}
+  onChangeText={setPinHint}
+/>
+
+{pinEnabled && (
+  <TouchableOpacity
+    activeOpacity={0.85}
+    style={styles.secondaryButton}
+    onPress={handleUpdateHint}
+  >
+    <Text style={styles.secondaryButtonText}>Update PIN Hint</Text>
+  </TouchableOpacity>
+)}
 
         {!pinEnabled ? (
           <TouchableOpacity
@@ -378,5 +414,20 @@ function createStyles(colors: any, isDark: boolean) {
       lineHeight: 20,
       color: isDark ? "#DBEAFE" : "#1E40AF",
     },
+    secondaryButton: {
+  backgroundColor: isDark ? "#020617" : "#F8FAFC",
+  borderWidth: 1,
+  borderColor: colors.border,
+  padding: 14,
+  borderRadius: 14,
+  alignItems: "center",
+  marginBottom: 16,
+},
+
+secondaryButtonText: {
+  color: colors.accent,
+  fontWeight: "900",
+  fontSize: 15,
+},
   });
 }

@@ -41,6 +41,7 @@ export async function initDatabase() {
   userName TEXT,
   nickname TEXT DEFAULT '',
   dateOfBirth TEXT DEFAULT '',
+  pinHint TEXT DEFAULT '',
   currencySymbol TEXT,
   theme TEXT DEFAULT 'SYSTEM'
     );
@@ -51,7 +52,11 @@ export async function initDatabase() {
   monthlyBackup INTEGER DEFAULT 1
 );
   `);
-
+try {
+  await db.execAsync(
+    `ALTER TABLE profile ADD COLUMN pinHint TEXT;`
+  );
+} catch {}
   // Migration: add type column to categories
   try {
     await db.execAsync(
