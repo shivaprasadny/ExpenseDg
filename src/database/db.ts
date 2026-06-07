@@ -16,18 +16,21 @@ export async function initDatabase() {
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      amount REAL NOT NULL,
-      categoryId INTEGER NOT NULL,
-      paymentMethod TEXT NOT NULL DEFAULT 'Cash',
-      note TEXT,
-      expenseDate TEXT NOT NULL,
-      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (categoryId) REFERENCES categories(id)
-    );
-
+  CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  amount REAL NOT NULL,
+  categoryId INTEGER NOT NULL,
+  paymentMethod TEXT NOT NULL DEFAULT 'Cash',
+  note TEXT,
+  expenseDate TEXT NOT NULL,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  type TEXT DEFAULT 'EXPENSE',
+  isFavorite INTEGER DEFAULT 0,
+  recurringGroupId TEXT,
+  isRecurring INTEGER DEFAULT 0,
+  FOREIGN KEY (categoryId) REFERENCES categories(id)
+);
     CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       monthlyBudget REAL NOT NULL DEFAULT 0
@@ -54,6 +57,31 @@ export async function initDatabase() {
       `ALTER TABLE expenses ADD COLUMN type TEXT DEFAULT 'EXPENSE';`
     );
   } catch {}
+  try {
+  await db.execAsync(`
+    ALTER TABLE profile
+    ADD COLUMN theme TEXT DEFAULT 'SYSTEM';
+  `);
+} catch {}
+try {
+  await db.execAsync(`
+    ALTER TABLE expenses ADD COLUMN isFavorite INTEGER DEFAULT 0;
+  `);
+} catch (error) {
+  // Column already exists, ignore error
+}
+
+try {
+  await db.execAsync(`
+    ALTER TABLE expenses ADD COLUMN recurringGroupId TEXT;
+  `);
+} catch {}
+
+try {
+  await db.execAsync(`
+    ALTER TABLE expenses ADD COLUMN isRecurring INTEGER DEFAULT 0;
+  `);
+} catch {}
 
   await insertDefaultCategories();
   await insertDefaultSettings();
@@ -121,11 +149,12 @@ async function insertDefaultProfile() {
   await db.runAsync(
     `
     INSERT OR IGNORE INTO profile
-    (id, userName, currencySymbol, savingsGoal)
-    VALUES (1, '', '$', 0)
+    (id, userName, currencySymbol, savingsGoal, theme)
+    VALUES (1, '', '$', 0, 'SYSTEM')
     `
   );
 }
+
 
 /**
  * Reset all data and recreate defaults.

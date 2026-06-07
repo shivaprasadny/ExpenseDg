@@ -47,3 +47,14 @@ export interface UserProfile {
   currencySymbol: string;
   savingsGoal: number;
 }
+export type AppTheme =
+  | "LIGHT"
+  | "DARK"
+  | "SYSTEM";
+
+export interface Profile {
+  userName: string;
+  currencySymbol: string;
+  savingsGoal: number;
+  theme: AppTheme;
+}

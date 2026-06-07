@@ -1,9 +1,12 @@
 import { dbPromise } from "../database/db";
 
+export type AppTheme = "LIGHT" | "DARK" | "SYSTEM";
+
 export interface UserProfile {
   userName: string;
   currencySymbol: string;
   savingsGoal: number;
+  theme: AppTheme;
 }
 
 /**
@@ -14,7 +17,11 @@ export async function getUserProfile(): Promise<UserProfile> {
 
   const result = await db.getFirstAsync<UserProfile>(
     `
-    SELECT userName, currencySymbol, savingsGoal
+    SELECT
+      userName,
+      currencySymbol,
+      savingsGoal,
+      theme
     FROM profile
     WHERE id = 1
     `
@@ -24,6 +31,7 @@ export async function getUserProfile(): Promise<UserProfile> {
     userName: result?.userName ?? "",
     currencySymbol: result?.currencySymbol ?? "$",
     savingsGoal: result?.savingsGoal ?? 0,
+    theme: result?.theme ?? "SYSTEM",
   };
 }
 
@@ -36,13 +44,14 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   await db.runAsync(
     `
     INSERT OR REPLACE INTO profile
-    (id, userName, currencySymbol, savingsGoal)
-    VALUES (1, ?, ?, ?)
+    (id, userName, currencySymbol, savingsGoal, theme)
+    VALUES (1, ?, ?, ?, ?)
     `,
     [
       profile.userName.trim(),
       profile.currencySymbol.trim() || "$",
       profile.savingsGoal,
+      profile.theme,
     ]
   );
 }

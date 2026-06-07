@@ -11,18 +11,24 @@ export interface CreateExpenseInput {
   note?: string;
   expenseDate: string;
   type: TransactionType;
+  recurringGroupId?: string;
+  isRecurring?: number;
 }
 
 export interface ExpenseListItem {
   id: number;
   title: string;
   amount: number;
+  categoryId: number;
   paymentMethod: string;
   note?: string;
   expenseDate: string;
   type: TransactionType;
   categoryName: string;
   categoryIcon: string;
+  isFavorite: number;
+  recurringGroupId?: string;
+  isRecurring: number;
 }
 
 /**
@@ -72,23 +78,34 @@ export function getDateRange(period: PeriodFilter, anchorDate: Date) {
  */
 export async function addExpense(input: CreateExpenseInput): Promise<void> {
   const db = await dbPromise;
-
-  await db.runAsync(
-    `
-    INSERT INTO expenses
-    (title, amount, categoryId, paymentMethod, note, expenseDate, type)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      input.title,
-      input.amount,
-      input.categoryId,
-      input.paymentMethod,
-      input.note ?? "",
-      input.expenseDate,
-      input.type,
-    ]
-  );
+await db.runAsync(
+  `
+  INSERT INTO expenses
+  (
+    title,
+    amount,
+    categoryId,
+    paymentMethod,
+    note,
+    expenseDate,
+    type,
+    recurringGroupId,
+    isRecurring
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  [
+    input.title,
+    input.amount,
+    input.categoryId,
+    input.paymentMethod,
+    input.note ?? "",
+    input.expenseDate,
+    input.type,
+    input.recurringGroupId ?? null,
+    input.isRecurring ?? 0,
+  ]
+);
 }
 
 /**
@@ -104,16 +121,21 @@ export async function getExpensesByPeriod(
 
   return await db.getAllAsync<ExpenseListItem>(
     `
-    SELECT
-      e.id,
-      e.title,
-      e.amount,
-      e.paymentMethod,
-      e.note,
-      e.expenseDate,
-      e.type,
-      c.name as categoryName,
-      c.icon as categoryIcon
+  SELECT
+  e.id,
+  e.title,
+  e.amount,
+  e.categoryId,
+  e.paymentMethod,
+  e.note,
+  e.expenseDate,
+  e.type,
+  e.isFavorite,
+  e.recurringGroupId,
+e.isRecurring,
+  c.name as categoryName,
+  c.icon as categoryIcon
+
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
     WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
@@ -267,26 +289,29 @@ export async function getAllRecordsByPeriod(
 ): Promise<ExpenseListItem[]> {
   const db = await dbPromise;
   const { startDate, endDate } = getDateRange(period, anchorDate);
-
-  return await db.getAllAsync<ExpenseListItem>(
-    `
-    SELECT
-      e.id,
-      e.title,
-      e.amount,
-      e.paymentMethod,
-      e.note,
-      e.expenseDate,
-      e.type,
-      c.name as categoryName,
-      c.icon as categoryIcon
-    FROM expenses e
-    LEFT JOIN categories c ON c.id = e.categoryId
-    WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
-    ORDER BY datetime(e.expenseDate) DESC
-    `,
-    [startDate, endDate]
-  );
+return await db.getAllAsync<ExpenseListItem>(
+  `
+  SELECT
+    e.id,
+    e.title,
+    e.amount,
+    e.categoryId,
+    e.paymentMethod,
+    e.note,
+    e.expenseDate,
+    e.type,
+    e.isFavorite,
+    e.recurringGroupId,
+e.isRecurring,
+    c.name as categoryName,
+    c.icon as categoryIcon
+  FROM expenses e
+  LEFT JOIN categories c ON c.id = e.categoryId
+  WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
+  ORDER BY datetime(e.expenseDate) DESC
+  `,
+  [startDate, endDate]
+);
 }
 /**
  * Category analytics for ALL records.
@@ -448,4 +473,125 @@ export async function getExpenseStreakStats(): Promise<{
     currentStreak,
     bestStreak,
   };
+}
+/**
+ * Get latest records for quick add / recent records.
+ * Used on AddExpenseScreen to prefill the form.
+ */
+export async function getRecentRecords(
+  limit: number = 5
+): Promise<ExpenseListItem[]> {
+  const db = await dbPromise;
+
+  return await db.getAllAsync<ExpenseListItem>(
+    `
+    SELECT
+      e.id,
+      e.title,
+      e.amount,
+      e.categoryId,
+      e.paymentMethod,
+      e.note,
+      e.expenseDate,
+      e.type,
+      e.isFavorite,
+      e.recurringGroupId,
+e.isRecurring,
+      c.name as categoryName,
+      c.icon as categoryIcon
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    ORDER BY datetime(e.expenseDate) DESC, e.id DESC
+    LIMIT ?
+    `,
+    [limit]
+  );
+}
+/**
+ * Toggle favorite on/off for one record.
+ */
+export async function toggleExpenseFavorite(
+  id: number,
+  isFavorite: number
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET isFavorite = ?
+    WHERE id = ?
+    `,
+    [isFavorite, id]
+  );
+}
+
+/**
+ * Get favorite records for Quick Add.
+ */
+export async function getFavoriteRecords(
+  type: TransactionType
+): Promise<ExpenseListItem[]> {
+  const db = await dbPromise;
+
+  return await db.getAllAsync<ExpenseListItem>(
+    `
+    SELECT
+      e.id,
+      e.title,
+      e.amount,
+      e.categoryId,
+      e.paymentMethod,
+      e.note,
+      e.expenseDate,
+      e.type,
+      e.isFavorite,
+      e.recurringGroupId,
+e.isRecurring,
+      c.name as categoryName,
+      c.icon as categoryIcon
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    WHERE e.isFavorite = 1
+      AND e.type = ?
+    ORDER BY e.title ASC
+    `,
+    [type]
+  );
+}
+
+/**
+ * Delete this and future records in same recurring series.
+ */
+export async function deleteFutureRecurringRecords(
+  recurringGroupId: string,
+  fromDate: string
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    DELETE FROM expenses
+    WHERE recurringGroupId = ?
+      AND datetime(expenseDate) >= datetime(?)
+    `,
+    [recurringGroupId, fromDate]
+  );
+}
+
+/**
+ * Delete all records in same recurring series.
+ */
+export async function deleteAllRecurringRecords(
+  recurringGroupId: string
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    DELETE FROM expenses
+    WHERE recurringGroupId = ?
+    `,
+    [recurringGroupId]
+  );
 }

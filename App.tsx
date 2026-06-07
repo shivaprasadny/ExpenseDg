@@ -3,24 +3,21 @@ import { StatusBar } from "expo-status-bar";
 
 import { initDatabase } from "./src/database/db";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { ThemeProvider } from "./src/context/ThemeContext";
 
-/**
- * App root file.
- * This runs first when the mobile app starts.
- */
 export default function App() {
- useEffect(() => {
-  async function startDatabase() {
-    await initDatabase();
-  }
+  useEffect(() => {
+    async function startDatabase() {
+      await initDatabase();
+    }
 
-  startDatabase();
-}, []);
+    startDatabase();
+  }, []);
 
   return (
-    <>
-      <StatusBar style="dark" />
+    <ThemeProvider>
+      <StatusBar style="auto" />
       <AppNavigator />
-    </>
+    </ThemeProvider>
   );
 }

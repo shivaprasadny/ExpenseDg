@@ -10,7 +10,6 @@ import {
 } from "react-native";
 
 import AppScreen from "../components/AppScreen";
-import { COLORS } from "../constants/colors";
 import { Category, TransactionType } from "../types";
 import {
   addCategory,
@@ -18,22 +17,24 @@ import {
   getCategoriesByType,
   updateCategory,
 } from "../services/categoryService";
+import { useAppTheme } from "../context/ThemeContext";
 
 /**
  * Categories screen.
  * User can add, edit, and delete Expense/Income categories.
+ * This screen supports light/dark/system theme.
  */
 export default function CategoriesScreen() {
+  const { colors, isDark } = useAppTheme();
+  const styles = createStyles(colors, isDark);
+
   const [transactionType, setTransactionType] =
     useState<TransactionType>("EXPENSE");
 
   const [categories, setCategories] = useState<Category[]>([]);
-
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("💰");
-
-  const [editingCategory, setEditingCategory] =
-    useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   useEffect(() => {
     loadCategories();
@@ -48,7 +49,7 @@ export default function CategoriesScreen() {
   }
 
   /**
-   * Start editing selected category.
+   * Start edit mode.
    */
   function handleStartEdit(category: Category) {
     setEditingCategory(category);
@@ -86,11 +87,7 @@ export default function CategoriesScreen() {
 
         Alert.alert("Updated", "Category updated successfully.");
       } else {
-        await addCategory(
-          name.trim(),
-          icon.trim() || "💰",
-          transactionType
-        );
+        await addCategory(name.trim(), icon.trim() || "💰", transactionType);
 
         Alert.alert("Added", "Category added successfully.");
       }
@@ -106,7 +103,7 @@ export default function CategoriesScreen() {
   }
 
   /**
-   * Confirm delete category.
+   * Confirm category delete.
    */
   function confirmDelete(category: Category) {
     const protectedNames = ["Other", "Other Income"];
@@ -131,7 +128,7 @@ export default function CategoriesScreen() {
   }
 
   /**
-   * Delete category.
+   * Delete category and reload list.
    */
   async function handleDelete(category: Category) {
     await deleteCategory(category);
@@ -146,19 +143,23 @@ export default function CategoriesScreen() {
   return (
     <AppScreen>
       <Text style={styles.title}>Categories</Text>
+      <Text style={styles.subtitle}>
+        Manage your expense and income categories
+      </Text>
 
+      {/* CATEGORY TYPE */}
       <Text style={styles.label}>Category Type</Text>
+
       <View style={styles.row}>
         <TouchableOpacity
+          activeOpacity={0.85}
           style={[
             styles.chip,
             transactionType === "EXPENSE" && styles.chipSelected,
           ]}
           onPress={() => {
             setTransactionType("EXPENSE");
-            setEditingCategory(null);
-            setName("");
-            setIcon("💰");
+            handleCancelEdit();
           }}
         >
           <Text
@@ -173,15 +174,14 @@ export default function CategoriesScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          activeOpacity={0.85}
           style={[
             styles.chip,
             transactionType === "INCOME" && styles.chipSelected,
           ]}
           onPress={() => {
             setTransactionType("INCOME");
-            setEditingCategory(null);
-            setName("");
-            setIcon("💰");
+            handleCancelEdit();
           }}
         >
           <Text
@@ -196,43 +196,55 @@ export default function CategoriesScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.formTitle}>
-        {editingCategory ? "Edit Category" : "Add Category"}
-      </Text>
-
-      <Text style={styles.label}>Icon</Text>
-      <TextInput
-        style={styles.input}
-        value={icon}
-        onChangeText={setIcon}
-        maxLength={2}
-      />
-
-      <Text style={styles.label}>Category Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder={
-          transactionType === "EXPENSE" ? "Books, Gym" : "Salary, Bonus"
-        }
-        value={name}
-        onChangeText={setName}
-      />
-
-      <TouchableOpacity style={styles.button} onPress={handleSaveCategory}>
-        <Text style={styles.buttonText}>
-          {editingCategory ? "Update Category" : "Add Category"}
+      {/* FORM */}
+      <View style={styles.formCard}>
+        <Text style={styles.formTitle}>
+          {editingCategory ? "Edit Category" : "Add Category"}
         </Text>
-      </TouchableOpacity>
 
-      {editingCategory && (
+        <Text style={styles.label}>Icon</Text>
+        <TextInput
+          style={styles.input}
+          value={icon}
+          onChangeText={setIcon}
+          maxLength={2}
+          placeholder="💰"
+          placeholderTextColor={colors.textSecondary}
+        />
+
+        <Text style={styles.label}>Category Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder={
+            transactionType === "EXPENSE" ? "Books, Gym" : "Salary, Bonus"
+          }
+          placeholderTextColor={colors.textSecondary}
+          value={name}
+          onChangeText={setName}
+        />
+
         <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancelEdit}
+          activeOpacity={0.85}
+          style={styles.button}
+          onPress={handleSaveCategory}
         >
-          <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+          <Text style={styles.buttonText}>
+            {editingCategory ? "Update Category" : "Add Category"}
+          </Text>
         </TouchableOpacity>
-      )}
 
+        {editingCategory && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.cancelButton}
+            onPress={handleCancelEdit}
+          >
+            <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* LIST */}
       <Text style={styles.sectionTitle}>
         {transactionType === "EXPENSE" ? "Expense" : "Income"} Categories
       </Text>
@@ -244,12 +256,14 @@ export default function CategoriesScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <TouchableOpacity
+              activeOpacity={0.85}
               style={styles.categoryInfo}
               onPress={() => handleStartEdit(item)}
             >
               <Text style={styles.categoryText}>
                 {item.icon} {item.name}
               </Text>
+
               <Text style={styles.tapText}>Tap to edit</Text>
             </TouchableOpacity>
 
@@ -263,120 +277,140 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  title: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: COLORS.primary,
-    marginBottom: 20,
-  },
-  formTitle: {
-    marginTop: 24,
-    fontSize: 20,
-    fontWeight: "900",
-    color: COLORS.primary,
-  },
-  label: {
-    marginTop: 14,
-    marginBottom: 8,
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  chip: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    alignItems: "center",
-  },
-  chipSelected: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  chipText: {
-    color: COLORS.textPrimary,
-    fontWeight: "700",
-  },
-  chipTextSelected: {
-    color: "#FFFFFF",
-    fontWeight: "800",
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: COLORS.accent,
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  buttonText: {
-    color: COLORS.card,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  cancelButton: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  cancelButtonText: {
-    color: COLORS.primary,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  sectionTitle: {
-    marginTop: 28,
-    marginBottom: 12,
-    fontSize: 20,
-    fontWeight: "800",
-    color: COLORS.primary,
-  },
-  card: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  categoryInfo: {
-    flex: 1,
-  },
-  categoryText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-  tapText: {
-    marginTop: 4,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: "600",
-  },
-  deleteText: {
-    color: COLORS.danger,
-    fontWeight: "700",
-  },
-});
+/**
+ * Theme-aware styles.
+ */
+function createStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    title: {
+      fontSize: 30,
+      fontWeight: "900",
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      marginTop: 4,
+      marginBottom: 20,
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    formTitle: {
+      fontSize: 20,
+      fontWeight: "900",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    label: {
+      marginTop: 14,
+      marginBottom: 8,
+      fontSize: 14,
+      fontWeight: "800",
+      color: colors.textPrimary,
+    },
+    row: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "center",
+      marginBottom: 18,
+    },
+    chip: {
+      flex: 1,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      alignItems: "center",
+    },
+    chipSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    chipText: {
+      color: colors.textPrimary,
+      fontWeight: "800",
+    },
+    chipTextSelected: {
+      color: "#FFFFFF",
+      fontWeight: "900",
+    },
+    formCard: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 18,
+      marginBottom: 22,
+    },
+    input: {
+      backgroundColor: isDark ? "#020617" : "#F8FAFC",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    button: {
+      backgroundColor: colors.accent,
+      padding: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      marginTop: 20,
+    },
+    buttonText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "900",
+    },
+    cancelButton: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      borderRadius: 14,
+      alignItems: "center",
+      marginTop: 12,
+    },
+    cancelButtonText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+    sectionTitle: {
+      marginBottom: 12,
+      fontSize: 20,
+      fontWeight: "900",
+      color: colors.textPrimary,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    categoryInfo: {
+      flex: 1,
+    },
+    categoryText: {
+      fontSize: 16,
+      fontWeight: "900",
+      color: colors.textPrimary,
+    },
+    tapText: {
+      marginTop: 4,
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "700",
+    },
+    deleteText: {
+      color: "#DC2626",
+      fontWeight: "800",
+    },
+  });
+}
