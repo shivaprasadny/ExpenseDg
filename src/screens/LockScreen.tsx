@@ -14,17 +14,18 @@ import {
 
 import { useAppTheme } from "../context/ThemeContext";
 import { getPinHint, verifyPin } from "../services/securityService";
+import {
+  authenticateWithBiometrics,
+  isBiometricEnabled,
+} from "../services/biometricService";
 
 type Props = {
   onUnlocked: () => void;
 };
 
 /**
- * LockScreen
- *
- * Shows before the app opens when PIN lock is enabled.
- * User enters PIN to unlock the app.
- * PIN hint is hidden until user taps "Show Hint".
+ * Premium lock screen.
+ * Supports PIN, optional hidden hint, and biometric unlock.
  */
 export default function LockScreen({ onUnlocked }: Props) {
   const { colors, isDark } = useAppTheme();
@@ -33,22 +34,36 @@ export default function LockScreen({ onUnlocked }: Props) {
   const [pin, setPin] = useState("");
   const [pinHint, setPinHint] = useState("");
   const [showHint, setShowHint] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   useEffect(() => {
-    loadHint();
+    prepareLockScreen();
   }, []);
 
-  /**
-   * Load saved PIN hint from SQLite.
-   */
-  async function loadHint() {
+  async function prepareLockScreen() {
     const hint = await getPinHint();
+    const biometric = await isBiometricEnabled();
+
     setPinHint(hint);
+    setBiometricEnabled(biometric);
+
+    if (biometric) {
+      const success = await authenticateWithBiometrics();
+
+      if (success) {
+        onUnlocked();
+      }
+    }
   }
 
-  /**
-   * Verify entered PIN.
-   */
+  async function handleBiometricUnlock() {
+    const success = await authenticateWithBiometrics();
+
+    if (success) {
+      onUnlocked();
+    }
+  }
+
   async function handleUnlock() {
     Keyboard.dismiss();
 
@@ -77,15 +92,28 @@ export default function LockScreen({ onUnlocked }: Props) {
         keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
         <View style={styles.card}>
-          <Text style={styles.icon}>🔒</Text>
+          <View style={styles.lockCircle}>
+            <Text style={styles.lockIcon}>🔒</Text>
+          </View>
 
           <Text style={styles.title}>ExpenseDG Locked</Text>
 
           <Text style={styles.subtitle}>
-            Enter your 4-digit PIN to continue
+            Secure your money data with PIN protection
           </Text>
 
-          {/* Hint is hidden until user taps Show Hint */}
+          {biometricEnabled && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.biometricButton}
+              onPress={handleBiometricUnlock}
+            >
+              <Text style={styles.biometricButtonText}>
+                Unlock with Face ID / Fingerprint
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {pinHint.trim().length > 0 && (
             <>
               <TouchableOpacity
@@ -94,13 +122,13 @@ export default function LockScreen({ onUnlocked }: Props) {
                 onPress={() => setShowHint(!showHint)}
               >
                 <Text style={styles.hintButtonText}>
-                  {showHint ? "Hide Hint" : "Show Hint"}
+                  {showHint ? "Hide PIN Hint" : "Show PIN Hint"}
                 </Text>
               </TouchableOpacity>
 
               {showHint && (
                 <View style={styles.hintBox}>
-                  <Text style={styles.hintLabel}>PIN Hint</Text>
+                  <Text style={styles.hintLabel}>Hint</Text>
                   <Text style={styles.hintText}>{pinHint}</Text>
                 </View>
               )}
@@ -123,10 +151,10 @@ export default function LockScreen({ onUnlocked }: Props) {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            style={styles.button}
+            style={styles.unlockButton}
             onPress={handleUnlock}
           >
-            <Text style={styles.buttonText}>Unlock</Text>
+            <Text style={styles.unlockButtonText}>Unlock with PIN</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -134,9 +162,6 @@ export default function LockScreen({ onUnlocked }: Props) {
   );
 }
 
-/**
- * Theme-aware styles.
- */
 function createStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     screen: {
@@ -149,13 +174,28 @@ function createStyles(colors: any, isDark: boolean) {
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 28,
+      borderRadius: 34,
       padding: 24,
       alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 14 },
+      shadowOpacity: isDark ? 0.35 : 0.12,
+      shadowRadius: 24,
+      elevation: 8,
     },
-    icon: {
-      fontSize: 46,
-      marginBottom: 12,
+    lockCircle: {
+      width: 78,
+      height: 78,
+      borderRadius: 39,
+      backgroundColor: isDark ? "#052E22" : "#ECFDF5",
+      borderWidth: 1,
+      borderColor: isDark ? "#065F46" : "#A7F3D0",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 16,
+    },
+    lockIcon: {
+      fontSize: 38,
     },
     title: {
       fontSize: 28,
@@ -164,22 +204,40 @@ function createStyles(colors: any, isDark: boolean) {
       textAlign: "center",
     },
     subtitle: {
-      marginTop: 6,
-      marginBottom: 14,
+      marginTop: 8,
+      marginBottom: 20,
       fontSize: 14,
       fontWeight: "700",
       color: colors.textSecondary,
       textAlign: "center",
+      lineHeight: 20,
+    },
+
+    biometricButton: {
+      width: "100%",
+      backgroundColor: isDark ? "#052E22" : "#ECFDF5",
+      borderWidth: 1,
+      borderColor: isDark ? "#065F46" : "#A7F3D0",
+      padding: 15,
+      borderRadius: 18,
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    biometricButtonText: {
+      color: colors.accent,
+      fontWeight: "900",
+      fontSize: 14,
     },
 
     hintButton: {
+      width: "100%",
       backgroundColor: isDark ? "#020617" : "#F8FAFC",
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 14,
-      paddingVertical: 10,
-      paddingHorizontal: 14,
-      marginBottom: 14,
+      borderRadius: 16,
+      padding: 13,
+      alignItems: "center",
+      marginBottom: 12,
     },
     hintButtonText: {
       color: colors.accent,
@@ -193,7 +251,7 @@ function createStyles(colors: any, isDark: boolean) {
       borderColor: colors.border,
       borderRadius: 16,
       padding: 14,
-      marginBottom: 18,
+      marginBottom: 14,
     },
     hintLabel: {
       fontSize: 12,
@@ -212,23 +270,23 @@ function createStyles(colors: any, isDark: boolean) {
       backgroundColor: isDark ? "#020617" : "#F8FAFC",
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 16,
+      borderRadius: 18,
       padding: 16,
-      fontSize: 24,
+      fontSize: 26,
       fontWeight: "900",
       color: colors.textPrimary,
       textAlign: "center",
-      letterSpacing: 8,
-      marginBottom: 18,
+      letterSpacing: 10,
+      marginBottom: 16,
     },
-    button: {
+    unlockButton: {
       width: "100%",
       backgroundColor: colors.accent,
       padding: 16,
-      borderRadius: 16,
+      borderRadius: 18,
       alignItems: "center",
     },
-    buttonText: {
+    unlockButtonText: {
       color: "#FFFFFF",
       fontSize: 16,
       fontWeight: "900",

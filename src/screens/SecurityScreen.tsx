@@ -24,6 +24,12 @@ import {
   savePinHint,
   getPinHint,
 } from "../services/securityService";
+import {
+  authenticateWithBiometrics,
+  isBiometricAvailable,
+  isBiometricEnabled,
+  setBiometricEnabled,
+} from "../services/biometricService";
 
 /**
  * SecurityScreen
@@ -44,6 +50,8 @@ const [savedHint, setSavedHint] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [oldPin, setOldPin] = useState("");
   const [pinHint, setPinHint] = useState("");
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -56,9 +64,15 @@ async function loadStatus() {
   const enabled = await isPinEnabled();
   const hint = await getPinHint();
 
+  const available = await isBiometricAvailable();
+  const biometric = await isBiometricEnabled();
+
   setPinEnabled(enabled);
   setPinHint(hint);
   setSavedHint(hint);
+
+  setBiometricAvailable(available);
+  setBiometricEnabled(biometric);
 }
   /**
    * Validate PIN format.
@@ -80,27 +94,24 @@ async function loadStatus() {
    * Enable PIN lock.
    */
   async function handleEnablePin() {
-
-    await enablePin(pin);
-await savePinHint(pinHint);
-    if (!isValidPin(pin)) {
-      Alert.alert("Invalid PIN", "PIN must be exactly 4 digits.");
-      return;
-    }
-
-    if (pin !== confirmPin) {
-      Alert.alert("PIN mismatch", "PIN and confirm PIN do not match.");
-      return;
-    }
-
-    await enablePin(pin);
-
-    clearFields();
-    setPinEnabled(true);
-
-    Alert.alert("Success", "PIN lock enabled.");
+  if (!isValidPin(pin)) {
+    Alert.alert("Invalid PIN", "PIN must be exactly 4 digits.");
+    return;
   }
 
+  if (pin !== confirmPin) {
+    Alert.alert("PIN mismatch", "PIN and confirm PIN do not match.");
+    return;
+  }
+
+  await enablePin(pin);
+  await savePinHint(pinHint);
+
+  clearFields();
+  setPinEnabled(true);
+
+  Alert.alert("Success", "PIN lock enabled.");
+}
   /**
    * Change existing PIN.
    * User must enter old PIN first.
@@ -176,6 +187,32 @@ await savePinHint(pinHint);
   setSavedHint(pinHint);
 
   Alert.alert("Saved", "PIN hint updated.");
+}
+
+
+
+
+async function handleToggleBiometric() {
+  const newValue = !biometricEnabled;
+
+  if (newValue) {
+    const success = await authenticateWithBiometrics();
+
+    if (!success) {
+      return;
+    }
+  }
+
+  await setBiometricEnabled(newValue);
+
+  setBiometricEnabled(newValue);
+
+  Alert.alert(
+    "Biometric Unlock",
+    newValue
+      ? "Biometric unlock enabled."
+      : "Biometric unlock disabled."
+  );
 }
 
   return (
@@ -255,6 +292,38 @@ await savePinHint(pinHint);
   </TouchableOpacity>
 )}
 
+
+
+{pinEnabled && biometricAvailable && (
+  <View style={styles.biometricCard}>
+    <Text style={styles.biometricTitle}>
+      Biometric Unlock
+    </Text>
+
+    <Text style={styles.biometricSubtitle}>
+      Use Face ID, Touch ID, or Fingerprint
+      instead of entering your PIN.
+    </Text>
+
+    <TouchableOpacity
+      style={[
+        styles.biometricButton,
+        biometricEnabled &&
+          styles.biometricButtonEnabled,
+      ]}
+      onPress={handleToggleBiometric}
+    >
+      <Text style={styles.biometricButtonText}>
+  {biometricEnabled
+    ? "Disable Biometric"
+    : "Enable Biometric"}
+</Text>
+    </TouchableOpacity>
+  </View>
+)}
+
+
+
         {!pinEnabled ? (
           <TouchableOpacity
             activeOpacity={0.85}
@@ -290,6 +359,10 @@ await savePinHint(pinHint);
           If you forget your PIN, you may need to reset local app data. Later we
           can add security questions or Face ID.
         </Text>
+
+        <Text style={styles.debugText}>
+  Biometric available: {biometricAvailable ? "Yes" : "No"}
+</Text>
       </View>
     </AppScreen>
   );
@@ -428,6 +501,52 @@ secondaryButtonText: {
   color: colors.accent,
   fontWeight: "900",
   fontSize: 15,
+},
+
+biometricCard: {
+  marginBottom: 16,
+  backgroundColor: isDark
+    ? "#020617"
+    : "#F8FAFC",
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: 16,
+  padding: 14,
+},
+
+biometricTitle: {
+  fontSize: 16,
+  fontWeight: "900",
+  color: colors.textPrimary,
+},
+
+biometricSubtitle: {
+  marginTop: 4,
+  marginBottom: 12,
+  color: colors.textSecondary,
+  fontSize: 13,
+  fontWeight: "700",
+},
+
+biometricButton: {
+  backgroundColor: colors.accent,
+  padding: 12,
+  borderRadius: 12,
+  alignItems: "center",
+},
+
+biometricButtonEnabled: {
+  backgroundColor: "#059669",
+},
+
+biometricButtonText: {
+  color: "#FFFFFF",
+  fontWeight: "900",
+},
+debugText: {
+  marginBottom: 12,
+  color: colors.textSecondary,
+  fontWeight: "700",
 },
   });
 }
