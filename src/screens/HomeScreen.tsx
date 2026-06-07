@@ -17,10 +17,14 @@ import {
   getDateRange,
   getTotalByTypeAndPeriod,
   PeriodFilter,
-  getExpenseStreak,
+ getExpenseStreakStats,
 } from "../services/expenseService";
 import { getUserProfile } from "../services/profileService";
 import { getSmartInsights } from "../services/insightService";
+import {
+  getFinancialJourney,
+  JourneyMilestone,
+} from "../services/journeyService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -38,10 +42,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [totalExpense, setTotalExpense] = useState(0);
   const [expenseCount, setExpenseCount] = useState(0);
   const [incomeCount, setIncomeCount] = useState(0);
+  const [journey, setJourney] = useState<JourneyMilestone[]>([]);
 
   const [userName, setUserName] = useState("");
   const [currencySymbol, setCurrencySymbol] = useState("$");
-  const [streak, setStreak] = useState(0);
+const [currentStreak, setCurrentStreak] = useState(0);
+const [bestStreak, setBestStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,12 +60,16 @@ export default function HomeScreen({ navigation }: Props) {
    */
   async function loadHomeData() {
     const profile = await getUserProfile();
-const currentStreak = await getExpenseStreak();
-setStreak(currentStreak);
+const streakStats = await getExpenseStreakStats();
+
+setCurrentStreak(streakStats.currentStreak);
+setBestStreak(streakStats.bestStreak);
     const income = await getTotalByTypeAndPeriod("INCOME", period, anchorDate);
     const expense = await getTotalByTypeAndPeriod("EXPENSE", period, anchorDate);
     const smartInsights = await getSmartInsights();
 setInsights(smartInsights);
+const journeyData = await getFinancialJourney();
+setJourney(journeyData);
 
     const incCount = await getCountByTypeAndPeriod("INCOME", period, anchorDate);
     const expCount = await getCountByTypeAndPeriod(
@@ -334,16 +344,23 @@ setInsights(smartInsights);
 {/* streak card */}
 
 <View style={styles.streakCard}>
-  <View>
-    <Text style={styles.streakLabel}>Expense Streak</Text>
-    <Text style={styles.streakText}>
-      🔥 {streak} day{streak === 1 ? "" : "s"}
-    </Text>
-  </View>
+  <Text style={styles.streakLabel}>Expense Streak</Text>
 
-  <Text style={styles.streakSubText}>
-    Keep tracking daily
-  </Text>
+  <View style={styles.streakRow}>
+    <View>
+      <Text style={styles.streakText}>
+        🔥 {currentStreak} day{currentStreak === 1 ? "" : "s"}
+      </Text>
+      <Text style={styles.streakSubText}>Current streak</Text>
+    </View>
+
+    <View>
+      <Text style={styles.bestStreakText}>
+        🏆 {bestStreak} day{bestStreak === 1 ? "" : "s"}
+      </Text>
+      <Text style={styles.streakSubText}>Best streak</Text>
+    </View>
+  </View>
 </View>
 
 
@@ -364,6 +381,30 @@ setInsights(smartInsights);
           “Track today. Understand tomorrow. Control your money.”
         </Text>
       </View>
+
+
+
+      {/* finacial journey */}
+      <View style={styles.journeyCard}>
+  <Text style={styles.journeyTitle}>🏆 Financial Journey</Text>
+
+  {journey.slice(0, 3).map((item) => (
+    <View key={item.title} style={styles.journeyRow}>
+      <Text style={styles.journeyIcon}>{item.icon}</Text>
+
+      <View style={styles.journeyTextBox}>
+        <Text style={styles.journeyItemTitle}>{item.title}</Text>
+        <Text style={styles.journeyDescription}>
+          {item.description}
+        </Text>
+      </View>
+
+      <Text style={styles.journeyStatus}>
+        {item.completed ? "✅" : "🔒"}
+      </Text>
+    </View>
+  ))}
+</View>
 
       {/* Quick Actions */}
       <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -754,5 +795,64 @@ insightText: {
   color: "#1E40AF",
   lineHeight: 22,
   marginBottom: 6,
+},
+journeyCard: {
+  backgroundColor: "#F8FAFC",
+  borderWidth: 1,
+  borderColor: "#CBD5E1",
+  borderRadius: 22,
+  padding: 18,
+  marginBottom: 16,
+},
+
+journeyTitle: {
+  fontSize: 16,
+  fontWeight: "900",
+  color: "#0F172A",
+  marginBottom: 12,
+},
+
+journeyRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 12,
+},
+
+journeyIcon: {
+  fontSize: 24,
+  marginRight: 12,
+},
+
+journeyTextBox: {
+  flex: 1,
+},
+
+journeyItemTitle: {
+  fontSize: 14,
+  fontWeight: "900",
+  color: "#0F172A",
+},
+
+journeyDescription: {
+  marginTop: 2,
+  fontSize: 12,
+  fontWeight: "700",
+  color: "#64748B",
+},
+
+journeyStatus: {
+  fontSize: 18,
+},
+streakRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  gap: 12,
+  marginTop: 8,
+},
+
+bestStreakText: {
+  fontSize: 20,
+  fontWeight: "900",
+  color: "#92400E",
 },
 });

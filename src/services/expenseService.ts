@@ -375,3 +375,77 @@ export async function getExpenseStreak(): Promise<number> {
 
   return streak;
 }
+/**
+ * Calculate current streak and best streak.
+ * A streak means consecutive days with at least one record.
+ */
+export async function getExpenseStreakStats(): Promise<{
+  currentStreak: number;
+  bestStreak: number;
+}> {
+  const db = await dbPromise;
+
+  const rows = await db.getAllAsync<{ expenseDate: string }>(
+    `
+    SELECT DISTINCT date(expenseDate) as expenseDate
+    FROM expenses
+    ORDER BY date(expenseDate) DESC
+    `
+  );
+
+  const dates = rows
+    .map((row) => row.expenseDate)
+    .filter(Boolean)
+    .sort();
+
+  const loggedDates = new Set(dates);
+
+  /**
+   * Current streak starts from today and goes backward.
+   */
+  let currentStreak = 0;
+  const currentDate = new Date();
+
+  while (true) {
+    const dateKey = currentDate.toISOString().split("T")[0];
+
+    if (loggedDates.has(dateKey)) {
+      currentStreak += 1;
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  /**
+   * Best streak checks all logged days.
+   */
+  let bestStreak = 0;
+  let runningStreak = 0;
+  let previousDate: Date | null = null;
+
+  for (const dateString of dates) {
+    const date = new Date(dateString);
+
+    if (!previousDate) {
+      runningStreak = 1;
+    } else {
+      const diffDays =
+        (date.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (diffDays === 1) {
+        runningStreak += 1;
+      } else {
+        runningStreak = 1;
+      }
+    }
+
+    bestStreak = Math.max(bestStreak, runningStreak);
+    previousDate = date;
+  }
+
+  return {
+    currentStreak,
+    bestStreak,
+  };
+}
