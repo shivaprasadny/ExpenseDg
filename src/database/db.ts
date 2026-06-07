@@ -44,6 +44,12 @@ export async function initDatabase() {
   currencySymbol TEXT,
   theme TEXT DEFAULT 'SYSTEM'
     );
+    CREATE TABLE IF NOT EXISTS notification_settings (
+  id INTEGER PRIMARY KEY,
+  smartReminder INTEGER DEFAULT 1,
+  weeklyReview INTEGER DEFAULT 1,
+  monthlyBackup INTEGER DEFAULT 1
+);
   `);
 
   // Migration: add type column to categories
@@ -198,5 +204,17 @@ export async function clearDatabase() {
     DELETE FROM categories;
     DELETE FROM settings;
     DELETE FROM profile;
+  `);
+}
+
+/**
+ * Delete only income and expense records.
+ * Keeps profile, theme, currency, settings, and categories.
+ */
+export async function clearRecordsOnly() {
+  const db = await dbPromise;
+
+  await db.execAsync(`
+    DELETE FROM expenses;
   `);
 }

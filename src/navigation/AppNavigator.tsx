@@ -16,6 +16,7 @@ import BackupResetScreen from "../screens/BackupResetScreen";
 import FeedbackScreen from "../screens/FeedbackScreen";
 import AboutScreen from "../screens/AboutScreen";
 import SecurityScreen from "../screens/SecurityScreen";
+import NotificationSettingsScreen from "../screens/NotificationSettingsScreen";
 
 /**
  * All app screen names and params.
@@ -56,6 +57,7 @@ export type RootStackParamList = {
   Feedback: undefined;
   About: undefined;
   Security: undefined;
+  Notifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -81,6 +83,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ title: "Feedback" }} />
         <Stack.Screen name="About" component={AboutScreen} options={{ title: "About" }} />
         <Stack.Screen name="Security" component={SecurityScreen} options={{ title: "Security" }} />
+        <Stack.Screen name="Notifications"component={NotificationSettingsScreen}options={{ title: "Notifications" }}/>
       </Stack.Navigator>
     </NavigationContainer>
   );

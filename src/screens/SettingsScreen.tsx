@@ -4,6 +4,8 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import AppScreen from "../components/AppScreen";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import * as Notifications from "expo-notifications";
+import { Alert } from "react-native";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
@@ -16,6 +18,12 @@ export default function SettingsScreen({ navigation }: Props) {
     <AppScreen>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.subtitle}>Manage your app, data, and preferences</Text>
+  <View style={styles.card}>
+        <MenuItem icon="📋" title="Records" subtitle="View all income and expenses" onPress={() => navigation.navigate("Expenses")} />
+        <MenuItem icon="🏷️" title="Categories" subtitle="Manage income and expense categories" onPress={() => navigation.navigate("Categories")} />
+      </View>
+
+
 
       <View style={styles.card}>
         <MenuItem icon="👤" title="Profile & Theme" subtitle="Name, currency, savings goal, theme" onPress={() => navigation.navigate("ProfileTheme")} />
@@ -23,12 +31,44 @@ export default function SettingsScreen({ navigation }: Props) {
         <MenuItem icon="💬" title="Feedback" subtitle="Send feedback or contact support" onPress={() => navigation.navigate("Feedback")} />
         <MenuItem icon="ℹ️" title="About ExpenseDG" subtitle="App info and version" onPress={() => navigation.navigate("About")} />
         <MenuItem icon="🔐" title="Security" subtitle="PIN and security questions coming soon" onPress={() => navigation.navigate("Security")} />
+      
+      <MenuItem
+  icon="🔔"
+  title="Notifications"
+  subtitle="Smart reminders, weekly review, and backup alerts"
+  onPress={() => navigation.navigate("Notifications")}
+/>
       </View>
 
-      <View style={styles.card}>
-        <MenuItem icon="📋" title="Records" subtitle="View all income and expenses" onPress={() => navigation.navigate("Expenses")} />
-        <MenuItem icon="🏷️" title="Categories" subtitle="Manage income and expense categories" onPress={() => navigation.navigate("Categories")} />
-      </View>
+<TouchableOpacity
+  onPress={async () => {
+    const permission = await Notifications.requestPermissionsAsync();
+
+    Alert.alert(
+      "Permission",
+      permission.granted ? "Granted" : "Not granted"
+    );
+
+    if (!permission.granted) return;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "ExpenseDG Test",
+        body: "Notifications are working 🎉",
+        sound: true,
+      },
+      trigger: {
+        seconds: 5,
+      } as any,
+    });
+
+    Alert.alert("Scheduled", "Notification should appear in 5 seconds.");
+  }}
+>
+  <Text>Test Notification</Text>
+</TouchableOpacity>
+
+    
     </AppScreen>
   );
 }
