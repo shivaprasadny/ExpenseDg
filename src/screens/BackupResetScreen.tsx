@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -13,27 +17,27 @@ import AppScreen from "../components/AppScreen";
 import { useAppTheme } from "../context/ThemeContext";
 import { createBackup, exportCsv, restoreBackup } from "../services/backupService";
 import { clearRecordsOnly, resetDatabase } from "../database/db";
+import { isPinEnabled, verifyPin } from "../services/securityService";
 
 /**
  * BackupResetScreen
  *
- * User can:
- * - Create JSON backup
- * - Restore backup
- * - Export CSV
- * - Clear records only
- * - Factory reset with RESET confirmation
+ * Safe reset rules:
+ * - If PIN is enabled, Clear Records requires PIN.
+ * - If PIN is enabled, Factory Reset requires PIN + RESET text.
+ * - If PIN is disabled, Factory Reset still requires RESET text.
  */
 export default function BackupResetScreen() {
   const { colors, isDark } = useAppTheme();
   const styles = createStyles(colors, isDark);
 
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetText, setResetText] = useState("");
+  const [showClearRecordsModal, setShowClearRecordsModal] = useState(false);
 
-  /**
-   * Create JSON backup file.
-   */
+  const [resetText, setResetText] = useState("");
+  const [pinText, setPinText] = useState("");
+  const [pinRequired, setPinRequired] = useState(false);
+
   async function handleBackup() {
     try {
       await createBackup();
@@ -42,9 +46,6 @@ export default function BackupResetScreen() {
     }
   }
 
-  /**
-   * Restore JSON backup file.
-   */
   async function handleRestore() {
     try {
       await restoreBackup();
@@ -54,9 +55,6 @@ export default function BackupResetScreen() {
     }
   }
 
-  /**
-   * Export records as CSV.
-   */
   async function handleExportCsv() {
     try {
       await exportCsv();
@@ -66,43 +64,62 @@ export default function BackupResetScreen() {
   }
 
   /**
-   * Clear only income and expense records.
-   * Keeps profile, theme, currency, and categories.
+   * Open Clear Records modal.
    */
-  function handleClearRecordsOnly() {
-    Alert.alert(
-      "Clear Records Only",
-      "This will delete all income and expense records, but keep your profile, theme, currency, and categories.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Clear Records",
-          style: "destructive",
-          onPress: async () => {
-            await clearRecordsOnly();
-            Alert.alert("Done", "All records were cleared.");
-          },
-        },
-      ]
-    );
+  async function openClearRecordsModal() {
+    const enabled = await isPinEnabled();
+
+    setPinRequired(enabled);
+    setPinText("");
+    setShowClearRecordsModal(true);
   }
 
   /**
-   * Open factory reset modal.
-   * User must type RESET before deleting everything.
+   * Clear only records.
    */
-  function openFactoryResetModal() {
+  async function handleClearRecordsOnly() {
+    if (pinRequired) {
+      const correct = await verifyPin(pinText);
+
+      if (!correct) {
+        Alert.alert("Wrong PIN", "Please enter the correct PIN.");
+        return;
+      }
+    }
+
+    await clearRecordsOnly();
+
+    setShowClearRecordsModal(false);
+    setPinText("");
+
+    Alert.alert("Done", "All records were cleared.");
+  }
+
+  /**
+   * Open Factory Reset modal.
+   */
+  async function openFactoryResetModal() {
+    const enabled = await isPinEnabled();
+
+    setPinRequired(enabled);
+    setPinText("");
     setResetText("");
     setShowResetModal(true);
   }
 
   /**
-   * Factory reset all local app data.
+   * Factory reset all local data.
    */
   async function handleFactoryReset() {
+    if (pinRequired) {
+      const correct = await verifyPin(pinText);
+
+      if (!correct) {
+        Alert.alert("Wrong PIN", "Please enter the correct PIN.");
+        return;
+      }
+    }
+
     if (resetText.trim() !== "RESET") {
       Alert.alert("Incorrect Confirmation", 'Please type "RESET" to continue.');
       return;
@@ -111,6 +128,7 @@ export default function BackupResetScreen() {
     await resetDatabase();
 
     setShowResetModal(false);
+    setPinText("");
     setResetText("");
 
     Alert.alert("Success", "Factory reset completed.");
@@ -121,7 +139,6 @@ export default function BackupResetScreen() {
       <Text style={styles.title}>Backup & Reset</Text>
       <Text style={styles.subtitle}>Manage your local ExpenseDG data</Text>
 
-      {/* BACKUP TOOLS */}
       <View style={styles.card}>
         <ActionButton
           styles={styles}
@@ -148,7 +165,6 @@ export default function BackupResetScreen() {
         />
       </View>
 
-      {/* RESET TOOLS */}
       <View style={styles.dangerCard}>
         <Text style={styles.dangerTitle}>Reset Options</Text>
         <Text style={styles.dangerText}>
@@ -158,10 +174,12 @@ export default function BackupResetScreen() {
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.warningButton}
-          onPress={handleClearRecordsOnly}
+          onPress={openClearRecordsModal}
         >
           <Text style={styles.warningButtonText}>Clear Records Only</Text>
-          <Text style={styles.warningSubText}>Keeps profile, theme, and categories</Text>
+          <Text style={styles.warningSubText}>
+            Keeps profile, theme, and categories
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -170,19 +188,109 @@ export default function BackupResetScreen() {
           onPress={openFactoryResetModal}
         >
           <Text style={styles.dangerButtonText}>Factory Reset</Text>
-          <Text style={styles.dangerButtonSubText}>Deletes everything on this device</Text>
+          <Text style={styles.dangerButtonSubText}>
+            Deletes everything on this device
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* FACTORY RESET CONFIRMATION MODAL */}
+      {/* CLEAR RECORDS MODAL */}
+     {/* CLEAR RECORDS MODAL */}
+<Modal visible={showClearRecordsModal} animationType="slide" transparent>
+  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <KeyboardAvoidingView
+      style={styles.modalOverlay}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+    >
+      <View style={styles.modalCard}>
+        <Text style={styles.modalTitle}>Clear Records Only</Text>
+
+        <Text style={styles.modalWarning}>
+          This will delete all income and expense records. Your profile, theme,
+          currency, and categories will stay.
+        </Text>
+
+        {pinRequired && (
+          <>
+            <Text style={styles.modalInstruction}>Enter PIN to continue.</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="••••"
+              placeholderTextColor={colors.textSecondary}
+              value={pinText}
+              onChangeText={setPinText}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              blurOnSubmit
+            />
+          </>
+        )}
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.warningModalButton}
+          onPress={() => {
+            Keyboard.dismiss();
+            handleClearRecordsOnly();
+          }}
+        >
+          <Text style={styles.modalResetButtonText}>Clear Records</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.modalCancelButton}
+          onPress={() => {
+            Keyboard.dismiss();
+            setShowClearRecordsModal(false);
+            setPinText("");
+          }}
+        >
+          <Text style={styles.modalCancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  </TouchableWithoutFeedback>
+</Modal>
+
+      {/* FACTORY RESET MODAL */}
       <Modal visible={showResetModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+  <KeyboardAvoidingView
+    style={styles.modalOverlay}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+    <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Factory Reset</Text>
 
             <Text style={styles.modalWarning}>
               This will delete all records, categories, profile, theme, and settings.
             </Text>
+
+            {pinRequired && (
+              <>
+                <Text style={styles.modalInstruction}>Enter PIN.</Text>
+
+                <TextInput
+  style={styles.input}
+  placeholder="••••"
+  placeholderTextColor={colors.textSecondary}
+  value={pinText}
+  onChangeText={setPinText}
+  keyboardType="number-pad"
+  secureTextEntry
+  maxLength={4}
+  returnKeyType="done"
+  onSubmitEditing={Keyboard.dismiss}
+  blurOnSubmit
+/>
+              </>
+            )}
 
             <Text style={styles.modalInstruction}>
               Type RESET below to confirm.
@@ -213,21 +321,20 @@ export default function BackupResetScreen() {
               style={styles.modalCancelButton}
               onPress={() => {
                 setShowResetModal(false);
+                setPinText("");
                 setResetText("");
               }}
             >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+            </View>
+  </KeyboardAvoidingView>
+</TouchableWithoutFeedback>
       </Modal>
     </AppScreen>
   );
 }
 
-/**
- * Reusable action row.
- */
 function ActionButton({
   icon,
   title,
@@ -255,9 +362,6 @@ function ActionButton({
   );
 }
 
-/**
- * Theme-aware styles.
- */
 function createStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     title: {
@@ -272,7 +376,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: "700",
       color: colors.textSecondary,
     },
-
     card: {
       backgroundColor: colors.card,
       borderWidth: 1,
@@ -281,7 +384,6 @@ function createStyles(colors: any, isDark: boolean) {
       padding: 10,
       marginBottom: 18,
     },
-
     actionButton: {
       flexDirection: "row",
       alignItems: "center",
@@ -311,7 +413,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: "800",
       color: colors.textSecondary,
     },
-
     dangerCard: {
       backgroundColor: isDark ? "#450A0A" : "#FEF2F2",
       borderWidth: 1,
@@ -332,7 +433,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 13,
       lineHeight: 19,
     },
-
     warningButton: {
       backgroundColor: "#F59E0B",
       padding: 16,
@@ -351,7 +451,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: "700",
       fontSize: 12,
     },
-
     dangerButton: {
       backgroundColor: "#DC2626",
       padding: 16,
@@ -369,7 +468,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: "700",
       fontSize: 12,
     },
-
     modalOverlay: {
       flex: 1,
       justifyContent: "flex-end",
@@ -408,12 +506,21 @@ function createStyles(colors: any, isDark: boolean) {
       borderColor: colors.border,
       borderRadius: 14,
       padding: 14,
-      fontSize: 16,
+      fontSize: 18,
       color: colors.textPrimary,
-      fontWeight: "800",
+      fontWeight: "900",
+      textAlign: "center",
+      letterSpacing: 4,
     },
     modalResetButton: {
       backgroundColor: "#DC2626",
+      padding: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      marginTop: 16,
+    },
+    warningModalButton: {
+      backgroundColor: "#F59E0B",
       padding: 16,
       borderRadius: 16,
       alignItems: "center",
