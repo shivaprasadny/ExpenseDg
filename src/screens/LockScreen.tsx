@@ -41,20 +41,21 @@ export default function LockScreen({ onUnlocked }: Props) {
   }, []);
 
   async function prepareLockScreen() {
-    const hint = await getPinHint();
-    const biometric = await isBiometricEnabled();
+  const hint = await getPinHint();
+  const biometric = await isBiometricEnabled();
 
-    setPinHint(hint);
-    setBiometricEnabled(biometric);
+  setPinHint(hint);
+  setBiometricEnabled(biometric);
 
-    if (biometric) {
-      const success = await authenticateWithBiometrics();
 
-      if (success) {
-        onUnlocked();
-      }
+  if (biometric) {
+    const success = await authenticateWithBiometrics();
+
+    if (success) {
+      onUnlocked();
     }
   }
+}
 
   async function handleBiometricUnlock() {
     const success = await authenticateWithBiometrics();
@@ -101,6 +102,10 @@ export default function LockScreen({ onUnlocked }: Props) {
           <Text style={styles.subtitle}>
             Secure your money data with PIN protection
           </Text>
+
+          <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>
+  Biometric: {biometricEnabled ? "ON" : "OFF"}
+</Text>
 
           {biometricEnabled && (
             <TouchableOpacity

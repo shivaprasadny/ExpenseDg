@@ -595,3 +595,205 @@ export async function deleteAllRecurringRecords(
     [recurringGroupId]
   );
 }
+/**
+ * Get recurring transaction groups.
+ * Shows one row per recurringGroupId.
+ */
+
+/**
+ * Get one row per recurring transaction series.
+ * Also returns recurringStatus so UI can show Active / Paused.
+ */
+export async function getRecurringGroups(): Promise<any[]> {
+  const db = await dbPromise;
+
+  return await db.getAllAsync<any>(
+    `
+    SELECT
+      e.id,
+      e.title,
+      e.amount,
+      e.categoryId,
+      e.paymentMethod,
+      e.note,
+      e.expenseDate,
+      e.type,
+      e.isFavorite,
+      e.isRecurring,
+      e.recurringGroupId,
+      COALESCE(e.recurringStatus, 'ACTIVE') as recurringStatus,
+
+      c.name as categoryName,
+      c.icon as categoryIcon,
+
+      COUNT(*) as totalRecords,
+      MIN(e.expenseDate) as firstDate,
+      MAX(e.expenseDate) as lastDate
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    WHERE e.isRecurring = 1
+      AND e.recurringGroupId IS NOT NULL
+    GROUP BY e.recurringGroupId
+    ORDER BY
+      CASE COALESCE(e.recurringStatus, 'ACTIVE')
+        WHEN 'ACTIVE' THEN 0
+        ELSE 1
+      END,
+      datetime(e.expenseDate) ASC
+    `
+  );
+}
+
+
+
+
+export async function deleteRecurringSeries(
+  recurringGroupId: string
+) {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    DELETE FROM expenses
+    WHERE recurringGroupId = ?
+    `,
+    [recurringGroupId]
+  );
+}
+/**
+ * Update current and future records in a recurring series.
+ */
+export async function updateFutureRecurringRecords(
+  recurringGroupId: string,
+  fromDate: string,
+  title: string,
+  amount: number,
+  categoryId: number,
+  paymentMethod: string,
+  note: string,
+  type: "EXPENSE" | "INCOME"
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET
+      title = ?,
+      amount = ?,
+      categoryId = ?,
+      paymentMethod = ?,
+      note = ?,
+      type = ?
+    WHERE recurringGroupId = ?
+      AND datetime(expenseDate) >= datetime(?)
+    `,
+    [
+      title,
+      amount,
+      categoryId,
+      paymentMethod,
+      note,
+      type,
+      recurringGroupId,
+      fromDate,
+    ]
+  );
+}
+
+/**
+ * Update all records in a recurring series.
+ */
+export async function updateAllRecurringRecords(
+  recurringGroupId: string,
+  title: string,
+  amount: number,
+  categoryId: number,
+  paymentMethod: string,
+  note: string,
+  type: "EXPENSE" | "INCOME"
+): Promise<void> {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET
+      title = ?,
+      amount = ?,
+      categoryId = ?,
+      paymentMethod = ?,
+      note = ?,
+      type = ?
+    WHERE recurringGroupId = ?
+    `,
+    [title, amount, categoryId, paymentMethod, note, type, recurringGroupId]
+  );
+}
+
+
+/**
+ * Pause recurring series.
+ * Keeps records but marks the series as paused.
+ */
+export async function pauseRecurringSeries(recurringGroupId: string) {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET recurringStatus = 'PAUSED'
+    WHERE recurringGroupId = ?
+    `,
+    [recurringGroupId]
+  );
+}
+
+/**
+ * Start paused recurring series again.
+ */
+export async function startRecurringSeries(recurringGroupId: string) {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET recurringStatus = 'ACTIVE'
+    WHERE recurringGroupId = ?
+    `,
+    [recurringGroupId]
+  );
+}
+/**
+ * Stop recurring series but keep old records.
+ * Future records are deleted.
+ * Past records stay, but become normal non-recurring records,
+ * so the series disappears from Recurring screen.
+ */
+export async function stopRecurringKeepOldRecords(
+  recurringGroupId: string,
+  fromDate: string
+) {
+  const db = await dbPromise;
+
+  await db.runAsync(
+    `
+    DELETE FROM expenses
+    WHERE recurringGroupId = ?
+      AND datetime(expenseDate) >= datetime(?)
+    `,
+    [recurringGroupId, fromDate]
+  );
+
+  await db.runAsync(
+    `
+    UPDATE expenses
+    SET
+      isRecurring = 0,
+      recurringGroupId = NULL,
+      recurringStatus = NULL
+    WHERE recurringGroupId = ?
+    `,
+    [recurringGroupId]
+  );
+}

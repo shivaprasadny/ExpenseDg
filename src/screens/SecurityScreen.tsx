@@ -199,17 +199,19 @@ async function handleToggleBiometric() {
     const success = await authenticateWithBiometrics();
 
     if (!success) {
+      Alert.alert("Not Enabled", "Biometric authentication was cancelled.");
       return;
     }
   }
 
   await setBiometricEnabled(newValue);
 
-  setBiometricEnabled(newValue);
+  const savedValue = await isBiometricEnabled();
+  setBiometricEnabled(savedValue);
 
   Alert.alert(
     "Biometric Unlock",
-    newValue
+    savedValue
       ? "Biometric unlock enabled."
       : "Biometric unlock disabled."
   );
@@ -293,32 +295,33 @@ async function handleToggleBiometric() {
 )}
 
 
-
-{pinEnabled && biometricAvailable && (
+{pinEnabled && (
   <View style={styles.biometricCard}>
-    <Text style={styles.biometricTitle}>
-      Biometric Unlock
-    </Text>
+    <Text style={styles.biometricTitle}>Biometric Unlock</Text>
 
     <Text style={styles.biometricSubtitle}>
-      Use Face ID, Touch ID, or Fingerprint
-      instead of entering your PIN.
+      Use Face ID, Touch ID, or Fingerprint instead of entering your PIN.
     </Text>
 
-    <TouchableOpacity
-      style={[
-        styles.biometricButton,
-        biometricEnabled &&
-          styles.biometricButtonEnabled,
-      ]}
-      onPress={handleToggleBiometric}
-    >
-      <Text style={styles.biometricButtonText}>
-  {biometricEnabled
-    ? "Disable Biometric"
-    : "Enable Biometric"}
-</Text>
-    </TouchableOpacity>
+    {!biometricAvailable ? (
+      <Text style={styles.biometricUnavailableText}>
+        Biometric unlock is not available in this environment. It should work on
+        a real device build if Face ID / Touch ID is set up.
+      </Text>
+    ) : (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={[
+          styles.biometricButton,
+          biometricEnabled && styles.biometricButtonEnabled,
+        ]}
+        onPress={handleToggleBiometric}
+      >
+        <Text style={styles.biometricButtonText}>
+          {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
+        </Text>
+      </TouchableOpacity>
+    )}
   </View>
 )}
 
@@ -547,6 +550,12 @@ debugText: {
   marginBottom: 12,
   color: colors.textSecondary,
   fontWeight: "700",
+},
+biometricUnavailableText: {
+  color: colors.textSecondary,
+  fontSize: 13,
+  fontWeight: "700",
+  lineHeight: 19,
 },
   });
 }

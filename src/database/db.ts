@@ -106,7 +106,16 @@ try {
     ALTER TABLE profile ADD COLUMN dateOfBirth TEXT DEFAULT '';
   `);
 } catch {}
-
+try {
+  await db.execAsync(`
+    ALTER TABLE expenses ADD COLUMN recurringStatus TEXT DEFAULT 'ACTIVE';
+  `);
+} catch {}
+try {
+  await db.execAsync(`
+    ALTER TABLE expenses ADD COLUMN recurringStatus TEXT DEFAULT 'ACTIVE';
+  `);
+} catch {}
   await insertDefaultCategories();
   await insertDefaultSettings();
   await insertDefaultProfile();

@@ -106,18 +106,22 @@ export default function AddExpenseScreen({ navigation }: Props) {
   /**
    * Prefill form when user duplicates a record from Records screen.
    */
-  useEffect(() => {
-    if (duplicateRecord) {
-      setTransactionType(duplicateRecord.type);
-      setTitle(duplicateRecord.title);
-      setAmount(String(duplicateRecord.amount));
-      setCategoryId(duplicateRecord.categoryId);
-      setPaymentMethod(duplicateRecord.paymentMethod);
-      setNote(duplicateRecord.note || "");
-      setExpenseDate(new Date());
-      setIsRecurring(false);
-    }
-  }, [duplicateRecord]);
+useEffect(() => {
+  if (duplicateRecord) {
+    setTitle(duplicateRecord.title);
+    setAmount(String(duplicateRecord.amount));
+    setCategoryId(duplicateRecord.categoryId);
+    setPaymentMethod(duplicateRecord.paymentMethod);
+    setNote(duplicateRecord.note || "");
+    setTransactionType(duplicateRecord.type);
+
+    // duplicated record should use today
+    setExpenseDate(new Date());
+
+    // if duplicated from Recurring screen, keep recurring ON
+    setIsRecurring(duplicateRecord.isRecurring === true);
+  }
+}, [duplicateRecord]);
 
   /**
    * Load categories for selected type.
@@ -189,14 +193,23 @@ export default function AddExpenseScreen({ navigation }: Props) {
     if (Number.isNaN(interval) || interval <= 0) return [];
 
     if (endType === "NEVER") {
-      const maxFutureRecords = 60;
+  /**
+   * Limit auto-generated future records based on repeat unit.
+   * This prevents yearly records from creating 60 years of data.
+   */
+  const maxFutureRecords =
+    repeatUnit === "WEEK"
+      ? 52 // about 1 year
+      : repeatUnit === "MONTH"
+      ? 24 // about 2 years
+      : 5; // yearly = 5 years only
 
-      for (let i = 0; i < maxFutureRecords; i++) {
-        dates.push(addTimeToDate(startDate, i * interval, repeatUnit));
-      }
+  for (let i = 0; i < maxFutureRecords; i++) {
+    dates.push(addTimeToDate(startDate, i * interval, repeatUnit));
+  }
 
-      return dates;
-    }
+  return dates;
+}
 
     if (endType === "PAYMENTS") {
       const count = Number(paymentCount);

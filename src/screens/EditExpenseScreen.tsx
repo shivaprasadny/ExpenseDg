@@ -17,7 +17,12 @@ import AppScreen from "../components/AppScreen";
 import { useAppTheme } from "../context/ThemeContext";
 import { Category, TransactionType } from "../types";
 import { getCategoriesByType } from "../services/categoryService";
-import { getExpenseById, updateExpense } from "../services/expenseService";
+import {
+  getExpenseById,
+  updateAllRecurringRecords,
+  updateExpense,
+  updateFutureRecurringRecords,
+} from "../services/expenseService";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EditExpense">;
@@ -39,15 +44,17 @@ const paymentMethods = [
 /**
  * EditExpenseScreen
  *
- * Edits one existing income or expense record.
- * Uses compact selectors and supports dark mode.
+ * Edits one income/expense record.
+ * If the record is recurring, user can choose:
+ * - Update this record only
+ * - Update this and future records
+ * - Update all records in the recurring series
  */
 export default function EditExpenseScreen({ route, navigation }: Props) {
   const { colors, isDark } = useAppTheme();
   const styles = createStyles(colors, isDark);
 
-  const { expenseId } = route.params;
-
+const { expenseId, updateScope } = route.params;
   const [transactionType, setTransactionType] =
     useState<TransactionType>("EXPENSE");
 
@@ -64,16 +71,13 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  /**
-   * Load selected record when screen opens.
-   */
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringGroupId, setRecurringGroupId] = useState<string | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
 
-  /**
-   * Reload categories when type changes.
-   */
   useEffect(() => {
     loadCategories(transactionType);
   }, [transactionType]);
@@ -91,7 +95,7 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
   }
 
   /**
-   * Load current record data.
+   * Load existing record data.
    */
   async function loadData() {
     const record: any = await getExpenseById(expenseId);
@@ -112,30 +116,43 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
     setNote(record.note ?? "");
     setExpenseDate(new Date(record.expenseDate));
 
+    setIsRecurring(record.isRecurring === 1);
+    setRecurringGroupId(record.recurringGroupId ?? null);
+
     const categoryData = await getCategoriesByType(type);
     setCategories(categoryData);
   }
 
   /**
-   * Validate and update record.
+   * Validate form and return amount as number.
    */
-  async function handleUpdate() {
+  function validateForm() {
     const amountNumber = Number(amount);
 
     if (!title.trim()) {
       Alert.alert("Missing name", "Please enter name.");
-      return;
+      return null;
     }
 
     if (!amount.trim() || Number.isNaN(amountNumber) || amountNumber <= 0) {
       Alert.alert("Invalid amount", "Please enter valid amount.");
-      return;
+      return null;
     }
 
     if (!categoryId) {
       Alert.alert("Missing category", "Please select category.");
-      return;
+      return null;
     }
+
+    return amountNumber;
+  }
+
+  /**
+   * Save only this selected record.
+   */
+  async function updateThisRecordOnly() {
+    const amountNumber = validateForm();
+    if (amountNumber === null || !categoryId) return;
 
     await updateExpense(
       expenseId,
@@ -152,14 +169,116 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
     navigation.goBack();
   }
 
+  /**
+   * Save recurring changes from this record forward.
+   * Date is not changed for the full series because each occurrence has its own date.
+   */
+  async function updateThisAndFutureRecords() {
+    const amountNumber = validateForm();
+    if (amountNumber === null || !categoryId || !recurringGroupId) return;
+
+    await updateFutureRecurringRecords(
+      recurringGroupId,
+      expenseDate.toISOString(),
+      title.trim(),
+      amountNumber,
+      categoryId,
+      paymentMethod,
+      note.trim(),
+      transactionType
+    );
+
+    Alert.alert("Updated", "This and future recurring records updated.");
+    navigation.goBack();
+  }
+
+  /**
+   * Save recurring changes to all records in the series.
+   * Date is not changed for the full series because each occurrence has its own date.
+   */
+  async function updateFullRecurringSeries() {
+    const amountNumber = validateForm();
+    if (amountNumber === null || !categoryId || !recurringGroupId) return;
+
+    await updateAllRecurringRecords(
+      recurringGroupId,
+      title.trim(),
+      amountNumber,
+      categoryId,
+      paymentMethod,
+      note.trim(),
+      transactionType
+    );
+
+    Alert.alert("Updated", "All recurring records updated.");
+    navigation.goBack();
+  }
+
+  /**
+   * Main update button.
+   * Recurring records show update options.
+   */
+  function handleUpdate() {
+  if (isRecurring && recurringGroupId) {
+    if (updateScope === "THIS_ONLY") {
+      updateThisRecordOnly();
+      return;
+    }
+
+    if (updateScope === "THIS_AND_FUTURE") {
+      updateThisAndFutureRecords();
+      return;
+    }
+
+    if (updateScope === "ALL_SERIES") {
+      updateFullRecurringSeries();
+      return;
+    }
+
+    Alert.alert("Update Recurring Record", "What would you like to update?", [
+      {
+        text: "This Record Only",
+        onPress: updateThisRecordOnly,
+      },
+      {
+        text: "This And Future Records",
+        onPress: updateThisAndFutureRecords,
+      },
+      {
+        text: "All Records In Series",
+        onPress: updateFullRecurringSeries,
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]);
+
+    return;
+  }
+
+  updateThisRecordOnly();
+}
+
   const selectedCategory = categories.find((item) => item.id === categoryId);
 
   return (
     <AppScreen>
       <Text style={styles.title}>Edit Record</Text>
-      <Text style={styles.subtitle}>Update your income or expense details</Text>
+      <Text style={styles.subtitle}>
+        Update your income or expense details
+      </Text>
 
-      {/* TYPE */}
+      {isRecurring && (
+        <View style={styles.recurringNotice}>
+          <Text style={styles.recurringTitle}>🔁 Recurring Record</Text>
+          <Text style={styles.recurringText}>
+            When saving, you can update only this record, this and future
+            records, or the full recurring series.
+          </Text>
+        </View>
+      )}
+
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Record Type</Text>
 
@@ -210,7 +329,6 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* DETAILS */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Details</Text>
 
@@ -263,7 +381,9 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
           style={styles.input}
           onPress={() => setShowDatePicker(true)}
         >
-          <Text style={styles.inputText}>{expenseDate.toLocaleDateString()}</Text>
+          <Text style={styles.inputText}>
+            {expenseDate.toLocaleDateString()}
+          </Text>
         </TouchableOpacity>
 
         {showDatePicker && (
@@ -294,7 +414,6 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
         )}
       </View>
 
-      {/* NOTE */}
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Note</Text>
 
@@ -313,10 +432,11 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
         style={styles.button}
         onPress={handleUpdate}
       >
-        <Text style={styles.buttonText}>Update Record</Text>
+        <Text style={styles.buttonText}>
+          {isRecurring ? "Update Recurring Record" : "Update Record"}
+        </Text>
       </TouchableOpacity>
 
-      {/* CATEGORY MODAL */}
       <Modal visible={showCategoryModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -351,7 +471,6 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
-      {/* PAYMENT MODAL */}
       <Modal visible={showPaymentModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -384,9 +503,6 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
   );
 }
 
-/**
- * Theme-aware styles.
- */
 function createStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     title: {
@@ -400,6 +516,27 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 14,
       fontWeight: "700",
       color: colors.textSecondary,
+    },
+
+    recurringNotice: {
+      backgroundColor: isDark ? "#052E22" : "#ECFDF5",
+      borderWidth: 1,
+      borderColor: isDark ? "#065F46" : "#A7F3D0",
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 18,
+    },
+    recurringTitle: {
+      fontSize: 15,
+      fontWeight: "900",
+      color: colors.accent,
+      marginBottom: 5,
+    },
+    recurringText: {
+      color: isDark ? "#A7F3D0" : "#065F46",
+      fontSize: 13,
+      fontWeight: "700",
+      lineHeight: 19,
     },
 
     sectionCard: {
@@ -423,7 +560,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: "800",
       color: colors.textPrimary,
     },
-
     row: {
       flexDirection: "row",
       gap: 10,
@@ -450,7 +586,6 @@ function createStyles(colors: any, isDark: boolean) {
       color: "#FFFFFF",
       fontWeight: "900",
     },
-
     input: {
       backgroundColor: isDark ? "#020617" : "#F8FAFC",
       borderWidth: 1,
@@ -468,7 +603,6 @@ function createStyles(colors: any, isDark: boolean) {
       minHeight: 90,
       textAlignVertical: "top",
     },
-
     selectorButton: {
       backgroundColor: isDark ? "#020617" : "#F8FAFC",
       borderWidth: 1,
@@ -491,7 +625,6 @@ function createStyles(colors: any, isDark: boolean) {
       color: colors.accent,
       marginLeft: 10,
     },
-
     doneButton: {
       backgroundColor: colors.accent,
       padding: 12,
@@ -503,7 +636,6 @@ function createStyles(colors: any, isDark: boolean) {
       color: "#FFFFFF",
       fontWeight: "900",
     },
-
     button: {
       backgroundColor: colors.accent,
       padding: 16,
@@ -517,7 +649,6 @@ function createStyles(colors: any, isDark: boolean) {
       fontSize: 16,
       fontWeight: "900",
     },
-
     modalOverlay: {
       flex: 1,
       justifyContent: "flex-end",

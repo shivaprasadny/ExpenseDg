@@ -17,6 +17,7 @@ import FeedbackScreen from "../screens/FeedbackScreen";
 import AboutScreen from "../screens/AboutScreen";
 import SecurityScreen from "../screens/SecurityScreen";
 import NotificationSettingsScreen from "../screens/NotificationSettingsScreen";
+import RecurringScreen from "../screens/RecurringScreen";
 
 /**
  * All app screen names and params.
@@ -33,6 +34,7 @@ export type RootStackParamList = {
           paymentMethod: string;
           note?: string;
           type: "EXPENSE" | "INCOME";
+          isRecurring?: boolean;
         };
       }
     | undefined;
@@ -43,9 +45,12 @@ export type RootStackParamList = {
       }
     | undefined;
 
-  EditExpense: {
-    expenseId: number;
-  };
+    EditExpense: {
+  expenseId: number;
+  updateScope?: "THIS_ONLY" | "THIS_AND_FUTURE" | "ALL_SERIES";
+};
+
+ 
 
   Categories: undefined;
   Budget: undefined;
@@ -58,6 +63,7 @@ export type RootStackParamList = {
   About: undefined;
   Security: undefined;
   Notifications: undefined;
+  Recurring: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -84,6 +90,10 @@ export default function AppNavigator() {
         <Stack.Screen name="About" component={AboutScreen} options={{ title: "About" }} />
         <Stack.Screen name="Security" component={SecurityScreen} options={{ title: "Security" }} />
         <Stack.Screen name="Notifications"component={NotificationSettingsScreen}options={{ title: "Notifications" }}/>
+        <Stack.Screen
+  name="Recurring"
+  component={RecurringScreen}
+/>
       </Stack.Navigator>
     </NavigationContainer>
   );

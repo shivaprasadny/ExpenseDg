@@ -4,7 +4,8 @@ import * as LocalAuthentication from "expo-local-authentication";
 const BIOMETRIC_ENABLED_KEY = "EXPENSEDG_BIOMETRIC_ENABLED";
 
 /**
- * Check if device supports biometric authentication.
+ * Check if phone supports Face ID / Touch ID / Fingerprint
+ * and user has enrolled it in device settings.
  */
 export async function isBiometricAvailable(): Promise<boolean> {
   const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -14,7 +15,7 @@ export async function isBiometricAvailable(): Promise<boolean> {
 }
 
 /**
- * Check if biometric unlock is enabled in ExpenseDG.
+ * Get saved biometric ON/OFF setting.
  */
 export async function isBiometricEnabled(): Promise<boolean> {
   const value = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
@@ -22,14 +23,14 @@ export async function isBiometricEnabled(): Promise<boolean> {
 }
 
 /**
- * Enable or disable biometric unlock.
+ * Save biometric ON/OFF setting.
  */
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
-  await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, String(enabled));
+  await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, enabled ? "true" : "false");
 }
 
 /**
- * Ask Face ID / Touch ID / Fingerprint to unlock.
+ * Face ID / Touch ID / Fingerprint prompt.
  */
 export async function authenticateWithBiometrics(): Promise<boolean> {
   const result = await LocalAuthentication.authenticateAsync({

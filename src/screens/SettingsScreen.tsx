@@ -7,6 +7,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import * as Notifications from "expo-notifications";
 import { Alert } from "react-native";
 
+
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 /**
@@ -21,6 +22,12 @@ export default function SettingsScreen({ navigation }: Props) {
   <View style={styles.card}>
         <MenuItem icon="📋" title="Records" subtitle="View all income and expenses" onPress={() => navigation.navigate("Expenses")} />
         <MenuItem icon="🏷️" title="Categories" subtitle="Manage income and expense categories" onPress={() => navigation.navigate("Categories")} />
+     <MenuItem
+  icon="🔁"
+  title="Recurring Transactions"
+  subtitle="Manage recurring income and expenses"
+  onPress={() => navigation.navigate("Recurring")}
+/>
       </View>
 
 
@@ -39,34 +46,6 @@ export default function SettingsScreen({ navigation }: Props) {
   onPress={() => navigation.navigate("Notifications")}
 />
       </View>
-
-<TouchableOpacity
-  onPress={async () => {
-    const permission = await Notifications.requestPermissionsAsync();
-
-    Alert.alert(
-      "Permission",
-      permission.granted ? "Granted" : "Not granted"
-    );
-
-    if (!permission.granted) return;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "ExpenseDG Test",
-        body: "Notifications are working 🎉",
-        sound: true,
-      },
-      trigger: {
-        seconds: 5,
-      } as any,
-    });
-
-    Alert.alert("Scheduled", "Notification should appear in 5 seconds.");
-  }}
->
-  <Text>Test Notification</Text>
-</TouchableOpacity>
 
     
     </AppScreen>

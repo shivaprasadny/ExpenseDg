@@ -6,7 +6,7 @@ import LockScreen from "./src/screens/LockScreen";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { initDatabase } from "./src/database/db";
 import { isPinEnabled } from "./src/services/securityService";
-
+import "./src/services/notificationService";
 /**
  * Main app entry.
  * Initializes database and shows PIN lock if enabled.
