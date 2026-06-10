@@ -28,7 +28,7 @@ import {
   authenticateWithBiometrics,
   isBiometricAvailable,
   isBiometricEnabled,
-  setBiometricEnabled,
+  setBiometricEnabled as saveBiometricEnabled,
 } from "../services/biometricService";
 
 /**
@@ -194,18 +194,17 @@ async function loadStatus() {
 async function handleToggleBiometric() {
   const newValue = !biometricEnabled;
 
-  await setBiometricEnabled(newValue);
+  await saveBiometricEnabled(newValue);
 
+  const savedValue = await isBiometricEnabled();
 
-const test = await isBiometricEnabled();
-console.log("After save:", test);
+  console.log("After save biometric:", savedValue);
 
-
-  setBiometricEnabled(newValue);
+  setBiometricEnabled(savedValue);
 
   Alert.alert(
     "Biometric Unlock",
-    newValue ? "Biometric is now ON." : "Biometric is now OFF."
+    savedValue ? "Biometric is now ON." : "Biometric is now OFF."
   );
 }
 
