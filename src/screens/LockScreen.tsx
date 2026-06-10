@@ -40,22 +40,29 @@ export default function LockScreen({ onUnlocked }: Props) {
     prepareLockScreen();
   }, []);
 
-  async function prepareLockScreen() {
+async function prepareLockScreen() {
   const hint = await getPinHint();
   const biometric = await isBiometricEnabled();
 
   setPinHint(hint);
   setBiometricEnabled(biometric);
 
-
+  /**
+   * Small delay lets LockScreen fully render first.
+   * Face ID works more reliably after screen is mounted.
+   */
   if (biometric) {
-    const success = await authenticateWithBiometrics();
+    setTimeout(async () => {
+      const success = await authenticateWithBiometrics();
 
-    if (success) {
-      onUnlocked();
-    }
+      if (success) {
+        onUnlocked();
+      }
+    }, 1000);
   }
 }
+
+
 
   async function handleBiometricUnlock() {
     const success = await authenticateWithBiometrics();
@@ -85,6 +92,8 @@ export default function LockScreen({ onUnlocked }: Props) {
     onUnlocked();
   }
 
+
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
@@ -103,9 +112,7 @@ export default function LockScreen({ onUnlocked }: Props) {
             Secure your money data with PIN protection
           </Text>
 
-          <Text style={{ color: colors.textSecondary, marginBottom: 10 }}>
-  Biometric: {biometricEnabled ? "ON" : "OFF"}
-</Text>
+       
 
           {biometricEnabled && (
             <TouchableOpacity

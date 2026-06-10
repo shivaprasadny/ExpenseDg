@@ -474,9 +474,16 @@ export async function getExpenseStreakStats(): Promise<{
     bestStreak,
   };
 }
+
+
 /**
- * Get latest records for quick add / recent records.
+ * Get latest added records for quick add / recent records.
  * Used on AddExpenseScreen to prefill the form.
+ *
+ * Important:
+ * Order by id DESC, not expenseDate.
+ * This shows records based on when the user added them,
+ * even if the transaction date is older.
  */
 export async function getRecentRecords(
   limit: number = 5
@@ -496,17 +503,19 @@ export async function getRecentRecords(
       e.type,
       e.isFavorite,
       e.recurringGroupId,
-e.isRecurring,
+      e.isRecurring,
       c.name as categoryName,
       c.icon as categoryIcon
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
-    ORDER BY datetime(e.expenseDate) DESC, e.id DESC
+    ORDER BY e.id DESC
     LIMIT ?
     `,
     [limit]
   );
 }
+
+
 /**
  * Toggle favorite on/off for one record.
  */

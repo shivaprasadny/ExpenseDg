@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useRoute } from "@react-navigation/native";
@@ -103,6 +104,24 @@ export default function AddExpenseScreen({ navigation }: Props) {
     loadFavoriteRecords();
   }, [transactionType]);
 
+ /**
+ * Set better default payment method when switching type.
+ */
+/**
+ * Set better default payment method when switching type.
+ * Do not override duplicate record payment method.
+ */
+useEffect(() => {
+  if (duplicateRecord) {
+    return;
+  }
+
+  if (transactionType === "INCOME") {
+    setPaymentMethod("Bank Transfer");
+  } else {
+    setPaymentMethod("Credit Card");
+  }
+}, [transactionType]);
   /**
    * Prefill form when user duplicates a record from Records screen.
    */
@@ -146,12 +165,31 @@ useEffect(() => {
   }
 
   /**
-   * Load recent records for selected type.
-   */
-  async function loadRecentRecords() {
-    const data = await getRecentRecords(10);
-    setRecentRecords(data.filter((record) => record.type === transactionType));
-  }
+ * Load recent records for selected type.
+ * Keeps only one record per title so recurring records do not repeat.
+ */
+async function loadRecentRecords() {
+  const data = await getRecentRecords(100);
+
+  const filteredData = data.filter(
+    (record) => record.type === transactionType
+  );
+
+  const seenTitles = new Set<string>();
+
+  const uniqueRecords = filteredData.filter((record) => {
+    const key = record.title.trim().toLowerCase();
+
+    if (seenTitles.has(key)) {
+      return false;
+    }
+
+    seenTitles.add(key);
+    return true;
+  });
+
+  setRecentRecords(uniqueRecords.slice(0, 10));
+}
 
   /**
    * Fill form from favorite/recent record.
@@ -289,6 +327,10 @@ useEffect(() => {
         : `${transactionType === "EXPENSE" ? "Expense" : "Income"} added.`
     );
 
+
+await loadRecentRecords();
+await loadFavoriteRecords();
+
     navigation.goBack();
   }
 
@@ -307,7 +349,11 @@ useEffect(() => {
               styles.chip,
               transactionType === "EXPENSE" && styles.chipSelected,
             ]}
-            onPress={() => setTransactionType("EXPENSE")}
+           onPress={() => {
+  setTransactionType("EXPENSE");
+  setCategoryId(null);
+  setPaymentMethod("Credit Card");
+}}
           >
             <Text
               style={
@@ -326,7 +372,11 @@ useEffect(() => {
               styles.chip,
               transactionType === "INCOME" && styles.chipSelected,
             ]}
-            onPress={() => setTransactionType("INCOME")}
+         onPress={() => {
+  setTransactionType("INCOME");
+  setCategoryId(null);
+  setPaymentMethod("Bank Transfer");
+}}
           >
             <Text
               style={

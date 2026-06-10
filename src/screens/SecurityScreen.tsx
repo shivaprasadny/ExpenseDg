@@ -191,31 +191,24 @@ async function loadStatus() {
 
 
 
-
 async function handleToggleBiometric() {
   const newValue = !biometricEnabled;
 
-  if (newValue) {
-    const success = await authenticateWithBiometrics();
-
-    if (!success) {
-      Alert.alert("Not Enabled", "Biometric authentication was cancelled.");
-      return;
-    }
-  }
-
   await setBiometricEnabled(newValue);
 
-  const savedValue = await isBiometricEnabled();
-  setBiometricEnabled(savedValue);
+
+const test = await isBiometricEnabled();
+console.log("After save:", test);
+
+
+  setBiometricEnabled(newValue);
 
   Alert.alert(
     "Biometric Unlock",
-    savedValue
-      ? "Biometric unlock enabled."
-      : "Biometric unlock disabled."
+    newValue ? "Biometric is now ON." : "Biometric is now OFF."
   );
 }
+
 
   return (
     <AppScreen>
@@ -317,9 +310,9 @@ async function handleToggleBiometric() {
         ]}
         onPress={handleToggleBiometric}
       >
-        <Text style={styles.biometricButtonText}>
-          {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
-        </Text>
+      <Text style={styles.biometricButtonText}>
+  {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
+</Text>
       </TouchableOpacity>
     )}
   </View>

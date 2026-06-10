@@ -26,23 +26,24 @@
         "backgroundColor": "#06281F"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.shivaprasadnyc.ExpenseDG"
     },
     "web": {
       "favicon": "./assets/icon.png"
     },
-   "plugins": [
-  "expo-sqlite",
-  "@react-native-community/datetimepicker",
-  "expo-mail-composer",
-  "expo-notifications",
-  [
-    "expo-local-authentication",
-    {
-      "faceIDPermission": "Allow ExpenseDG to use Face ID to unlock your app."
-    }
-  ]
-],
+    "plugins": [
+      "expo-sqlite",
+      "@react-native-community/datetimepicker",
+      "expo-mail-composer",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow ExpenseDG to use Face ID to unlock your app."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "635269a9-3b53-4f43-9a7c-6895073bc51b"
