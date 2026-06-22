@@ -12,15 +12,17 @@ export async function createBackup() {
   const db = await dbPromise;
 
   const categories = await db.getAllAsync("SELECT * FROM categories");
+  const accounts = await db.getAllAsync("SELECT * FROM accounts");
   const expenses = await db.getAllAsync("SELECT * FROM expenses");
   const settings = await db.getAllAsync("SELECT * FROM settings");
   const profile = await db.getAllAsync("SELECT * FROM profile");
 
   const backup = {
     appName: "ExpenseDG",
-    version: 2,
+    version: 3,
     createdAt: new Date().toISOString(),
     categories,
+    accounts,
     expenses,
     settings,
     profile,
@@ -68,6 +70,7 @@ export async function restoreBackup() {
    */
   await db.execAsync(`
     DELETE FROM expenses;
+    DELETE FROM accounts;
     DELETE FROM categories;
     DELETE FROM settings;
     DELETE FROM profile;
@@ -94,6 +97,40 @@ export async function restoreBackup() {
   }
 
   /**
+   * Restore accounts when present. Older backups simply have none.
+   */
+  for (const account of backup.accounts ?? []) {
+    await db.runAsync(
+      `
+      INSERT INTO accounts
+      (
+        id,
+        name,
+        paymentMethod,
+        provider,
+        lastFour,
+        icon,
+        isDefault,
+        isArchived,
+        createdAt
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        account.id,
+        account.name,
+        account.paymentMethod,
+        account.provider ?? "",
+        account.lastFour ?? "",
+        account.icon ?? "💳",
+        account.isDefault ?? 0,
+        account.isArchived ?? 0,
+        account.createdAt ?? new Date().toISOString(),
+      ]
+    );
+  }
+
+  /**
    * Restore transactions with type.
    */
   for (const expense of backup.expenses) {
@@ -106,12 +143,17 @@ export async function restoreBackup() {
         amount,
         categoryId,
         paymentMethod,
+        accountId,
         note,
         expenseDate,
         createdAt,
-        type
+        type,
+        isFavorite,
+        recurringGroupId,
+        isRecurring,
+        recurringStatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         expense.id,
@@ -119,10 +161,15 @@ export async function restoreBackup() {
         expense.amount,
         expense.categoryId,
         expense.paymentMethod,
+        expense.accountId ?? null,
         expense.note ?? "",
         expense.expenseDate,
         expense.createdAt ?? new Date().toISOString(),
         expense.type ?? "EXPENSE",
+        expense.isFavorite ?? 0,
+        expense.recurringGroupId ?? null,
+        expense.isRecurring ?? 0,
+        expense.recurringStatus ?? "ACTIVE",
       ]
     );
   }
@@ -154,14 +201,27 @@ export async function restoreBackup() {
       await db.runAsync(
         `
         INSERT INTO profile
-        (id, userName, currencySymbol, savingsGoal)
-        VALUES (?, ?, ?, ?)
+        (
+          id,
+          userName,
+          nickname,
+          dateOfBirth,
+          pinHint,
+          currencySymbol,
+          theme,
+          biometricEnabled
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           profile.id ?? 1,
           profile.userName ?? "",
+          profile.nickname ?? "",
+          profile.dateOfBirth ?? "",
+          profile.pinHint ?? "",
           profile.currencySymbol ?? "$",
-          profile.savingsGoal ?? 0,
+          profile.theme ?? "SYSTEM",
+          profile.biometricEnabled ?? 0,
         ]
       );
     }
@@ -169,8 +229,17 @@ export async function restoreBackup() {
     await db.runAsync(
       `
       INSERT OR IGNORE INTO profile
-      (id, userName, currencySymbol, savingsGoal)
-      VALUES (1, '', '$', 0)
+      (
+        id,
+        userName,
+        nickname,
+        dateOfBirth,
+        pinHint,
+        currencySymbol,
+        theme,
+        biometricEnabled
+      )
+      VALUES (1, '', '', '', '', '$', 'SYSTEM', 0)
       `
     );
   }
@@ -190,15 +259,19 @@ export async function exportCsv() {
       e.title,
       e.amount,
       e.paymentMethod,
+      a.name as accountName,
+      a.lastFour as accountLastFour,
       e.note
     FROM expenses e
     LEFT JOIN categories c
       ON c.id = e.categoryId
+    LEFT JOIN accounts a
+      ON a.id = e.accountId
     ORDER BY datetime(e.expenseDate) DESC
   `);
 
   const header =
-    "Date,Type,Category,Title,Amount,Payment Method,Note\n";
+    "Date,Type,Category,Title,Amount,Payment Method,Account,Note\n";
 
   const csvRows = rows.map((row) => {
     const date = new Date(row.expenseDate).toLocaleDateString();
@@ -210,6 +283,9 @@ export async function exportCsv() {
       row.title,
       row.amount,
       row.paymentMethod,
+      row.accountName
+        ? `${row.accountName}${row.accountLastFour ? ` •••• ${row.accountLastFour}` : ""}`
+        : "",
       row.note ?? "",
     ]
       .map((value) => `"${String(value).replace(/"/g, '""')}"`)

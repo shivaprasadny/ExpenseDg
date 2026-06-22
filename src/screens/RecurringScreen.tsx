@@ -130,6 +130,7 @@ function handleEditRecurring(item: any) {
     amount: Number(item.amount),
     categoryId: Number(item.categoryId),
     paymentMethod: item.paymentMethod,
+    accountId: item.accountId ?? null,
     note: item.note ?? "",
     type: item.type,
     isRecurring: true,

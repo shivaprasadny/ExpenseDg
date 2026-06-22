@@ -35,6 +35,8 @@ export default function CategoriesScreen() {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("💰");
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editIcon, setEditIcon] = useState("");
 
   useEffect(() => {
     loadCategories();
@@ -53,9 +55,8 @@ export default function CategoriesScreen() {
    */
   function handleStartEdit(category: Category) {
     setEditingCategory(category);
-    setName(category.name);
-    setIcon(category.icon);
-    setTransactionType(category.type);
+    setEditName(category.name);
+    setEditIcon(category.icon);
   }
 
   /**
@@ -63,12 +64,12 @@ export default function CategoriesScreen() {
    */
   function handleCancelEdit() {
     setEditingCategory(null);
-    setName("");
-    setIcon("💰");
+    setEditName("");
+    setEditIcon("");
   }
 
   /**
-   * Add or update category.
+   * Add a category.
    */
   async function handleSaveCategory() {
     if (!name.trim()) {
@@ -77,28 +78,40 @@ export default function CategoriesScreen() {
     }
 
     try {
-      if (editingCategory) {
-        await updateCategory(
-          editingCategory.id,
-          name.trim(),
-          icon.trim() || "💰",
-          transactionType
-        );
-
-        Alert.alert("Updated", "Category updated successfully.");
-      } else {
-        await addCategory(name.trim(), icon.trim() || "💰", transactionType);
-
-        Alert.alert("Added", "Category added successfully.");
-      }
+      await addCategory(name.trim(), icon.trim() || "💰", transactionType);
 
       setName("");
       setIcon("💰");
-      setEditingCategory(null);
 
       await loadCategories();
+      Alert.alert("Added", "Category added successfully.");
     } catch {
       Alert.alert("Error", "Could not save category.");
+    }
+  }
+
+  /**
+   * Save changes from the category's inline editor.
+   */
+  async function handleSaveEdit(category: Category) {
+    if (!editName.trim()) {
+      Alert.alert("Missing name", "Please enter category name.");
+      return;
+    }
+
+    try {
+      await updateCategory(
+        category.id,
+        editName.trim(),
+        editIcon.trim() || "💰",
+        category.type
+      );
+
+      handleCancelEdit();
+      await loadCategories();
+      Alert.alert("Updated", "Category updated successfully.");
+    } catch {
+      Alert.alert("Error", "Could not update category.");
     }
   }
 
@@ -198,9 +211,7 @@ export default function CategoriesScreen() {
 
       {/* FORM */}
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>
-          {editingCategory ? "Edit Category" : "Add Category"}
-        </Text>
+        <Text style={styles.formTitle}>Add Category</Text>
 
         <Text style={styles.label}>Icon</Text>
         <TextInput
@@ -228,20 +239,8 @@ export default function CategoriesScreen() {
           style={styles.button}
           onPress={handleSaveCategory}
         >
-          <Text style={styles.buttonText}>
-            {editingCategory ? "Update Category" : "Add Category"}
-          </Text>
+          <Text style={styles.buttonText}>Add Category</Text>
         </TouchableOpacity>
-
-        {editingCategory && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.cancelButton}
-            onPress={handleCancelEdit}
-          >
-            <Text style={styles.cancelButtonText}>Cancel Edit</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* LIST */}
@@ -253,25 +252,75 @@ export default function CategoriesScreen() {
         data={categories}
         keyExtractor={(item) => String(item.id)}
         scrollEnabled={false}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.categoryInfo}
-              onPress={() => handleStartEdit(item)}
-            >
-              <Text style={styles.categoryText}>
-                {item.icon} {item.name}
-              </Text>
+        renderItem={({ item }) => {
+          const isEditing = editingCategory?.id === item.id;
 
-              <Text style={styles.tapText}>Tap to edit</Text>
-            </TouchableOpacity>
+          return (
+            <View style={[styles.card, isEditing && styles.editingCard]}>
+              {isEditing ? (
+                <View style={styles.inlineEditor}>
+                  <Text style={styles.inlineEditTitle}>Edit Category</Text>
 
-            <TouchableOpacity onPress={() => confirmDelete(item)}>
-              <Text style={styles.deleteText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+                  <View style={styles.inlineInputRow}>
+                    <TextInput
+                      style={[styles.input, styles.iconInput]}
+                      value={editIcon}
+                      onChangeText={setEditIcon}
+                      maxLength={2}
+                      placeholder="💰"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+
+                    <TextInput
+                      style={[styles.input, styles.nameInput]}
+                      value={editName}
+                      onChangeText={setEditName}
+                      placeholder="Category name"
+                      placeholderTextColor={colors.textSecondary}
+                      autoFocus
+                    />
+                  </View>
+
+                  <View style={styles.inlineActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.cancelButton, styles.inlineButton]}
+                      onPress={handleCancelEdit}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.button, styles.inlineButton]}
+                      onPress={() => handleSaveEdit(item)}
+                    >
+                      <Text style={styles.buttonText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.categoryInfo}
+                    onPress={() => handleStartEdit(item)}
+                  >
+                    <Text style={styles.categoryText}>
+                      {item.icon} {item.name}
+                    </Text>
+
+                    <Text style={styles.tapText}>Tap to edit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => confirmDelete(item)}>
+                    <Text style={styles.deleteText}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          );
+        }}
       />
     </AppScreen>
   );
@@ -393,6 +442,39 @@ function createStyles(colors: any, isDark: boolean) {
       flexDirection: "row",
       justifyContent: "space-between",
       gap: 12,
+    },
+    editingCard: {
+      borderColor: colors.accent,
+    },
+    inlineEditor: {
+      flex: 1,
+    },
+    inlineEditTitle: {
+      marginBottom: 12,
+      fontSize: 16,
+      fontWeight: "900",
+      color: colors.textPrimary,
+    },
+    inlineInputRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    iconInput: {
+      width: 66,
+      textAlign: "center",
+    },
+    nameInput: {
+      flex: 1,
+    },
+    inlineActions: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 12,
+    },
+    inlineButton: {
+      flex: 1,
+      marginTop: 0,
+      padding: 13,
     },
     categoryInfo: {
       flex: 1,

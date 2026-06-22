@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState,useCallback} from "react";
 import {
   Alert,
   FlatList,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -60,6 +62,17 @@ export default function ExpensesScreen({ navigation, route }: Props) {
     loadItems();
   }, [transactionType, period, anchorDate]);
 
+
+
+  /**
+ * Reload records whenever screen becomes active.
+ * Fixes stale data after Add/Edit/Delete.
+ */
+useFocusEffect(
+  useCallback(() => {
+    loadItems();
+  }, [transactionType, period, anchorDate])
+);
   /**
    * Load records from SQLite.
    */
@@ -196,6 +209,7 @@ export default function ExpensesScreen({ navigation, route }: Props) {
         amount: Number(item.amount),
         categoryId: Number(item.categoryId),
         paymentMethod: item.paymentMethod,
+        accountId: item.accountId ?? null,
         note: item.note ?? "",
         type: item.type,
       },
@@ -456,6 +470,13 @@ export default function ExpensesScreen({ navigation, route }: Props) {
 
                   <Text style={styles.meta} numberOfLines={1}>
                     {item.categoryName} • {item.paymentMethod}
+                    {item.accountName
+                      ? ` • ${item.accountName}${
+                          item.accountLastFour
+                            ? ` •••• ${item.accountLastFour}`
+                            : ""
+                        }`
+                      : ""}
                   </Text>
                 </View>
               </View>

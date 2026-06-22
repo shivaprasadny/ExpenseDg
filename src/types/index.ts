@@ -17,6 +17,21 @@ export interface Category {
 }
 
 /**
+ * A specific card, bank account, cash wallet, or digital wallet.
+ * `paymentMethod` groups accounts for the transaction form.
+ */
+export interface Account {
+  id: number;
+  name: string;
+  paymentMethod: string;
+  provider: string;
+  lastFour: string;
+  icon: string;
+  isDefault: number;
+  isArchived: number;
+}
+
+/**
  * Transaction model.
  * We still call the table "expenses" in SQLite,
  * but in the app it now stores both income and expenses.
@@ -27,6 +42,7 @@ export interface Expense {
   amount: number;
   categoryId: number;
   paymentMethod: string;
+  accountId?: number | null;
   note?: string;
   expenseDate: string;
   type: TransactionType;

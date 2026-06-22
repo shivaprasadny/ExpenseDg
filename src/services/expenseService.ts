@@ -8,6 +8,7 @@ export interface CreateExpenseInput {
   amount: number;
   categoryId: number;
   paymentMethod: string;
+  accountId?: number | null;
   note?: string;
   expenseDate: string;
   type: TransactionType;
@@ -21,6 +22,10 @@ export interface ExpenseListItem {
   amount: number;
   categoryId: number;
   paymentMethod: string;
+  accountId?: number | null;
+  accountName?: string | null;
+  accountIcon?: string | null;
+  accountLastFour?: string | null;
   note?: string;
   expenseDate: string;
   type: TransactionType;
@@ -86,19 +91,21 @@ await db.runAsync(
     amount,
     categoryId,
     paymentMethod,
+    accountId,
     note,
     expenseDate,
     type,
     recurringGroupId,
     isRecurring
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
   [
     input.title,
     input.amount,
     input.categoryId,
     input.paymentMethod,
+    input.accountId ?? null,
     input.note ?? "",
     input.expenseDate,
     input.type,
@@ -127,6 +134,7 @@ export async function getExpensesByPeriod(
   e.amount,
   e.categoryId,
   e.paymentMethod,
+  e.accountId,
   e.note,
   e.expenseDate,
   e.type,
@@ -134,10 +142,14 @@ export async function getExpensesByPeriod(
   e.recurringGroupId,
 e.isRecurring,
   c.name as categoryName,
-  c.icon as categoryIcon
+  c.icon as categoryIcon,
+  a.name as accountName,
+  a.icon as accountIcon,
+  a.lastFour as accountLastFour
 
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
+    LEFT JOIN accounts a ON a.id = e.accountId
     WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
       AND e.type = ?
     ORDER BY datetime(e.expenseDate) DESC
@@ -228,6 +240,7 @@ export async function updateExpense(
   amount: number,
   categoryId: number,
   paymentMethod: string,
+  accountId: number | null,
   note: string,
   expenseDate: string,
   type: TransactionType
@@ -241,12 +254,13 @@ export async function updateExpense(
         amount = ?,
         categoryId = ?,
         paymentMethod = ?,
+        accountId = ?,
         note = ?,
         expenseDate = ?,
         type = ?
     WHERE id = ?
     `,
-    [title, amount, categoryId, paymentMethod, note, expenseDate, type, id]
+    [title, amount, categoryId, paymentMethod, accountId, note, expenseDate, type, id]
   );
 }
 
@@ -297,6 +311,7 @@ return await db.getAllAsync<ExpenseListItem>(
     e.amount,
     e.categoryId,
     e.paymentMethod,
+    e.accountId,
     e.note,
     e.expenseDate,
     e.type,
@@ -304,15 +319,65 @@ return await db.getAllAsync<ExpenseListItem>(
     e.recurringGroupId,
 e.isRecurring,
     c.name as categoryName,
-    c.icon as categoryIcon
+    c.icon as categoryIcon,
+    a.name as accountName,
+    a.icon as accountIcon,
+    a.lastFour as accountLastFour
   FROM expenses e
   LEFT JOIN categories c ON c.id = e.categoryId
+  LEFT JOIN accounts a ON a.id = e.accountId
   WHERE datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
   ORDER BY datetime(e.expenseDate) DESC
   `,
   [startDate, endDate]
 );
 }
+
+/**
+ * Get records for one specific card, bank account, or payment source.
+ */
+export async function getAccountRecordsByPeriod(
+  accountId: number | null,
+  period: PeriodFilter,
+  anchorDate: Date
+): Promise<ExpenseListItem[]> {
+  const db = await dbPromise;
+  const { startDate, endDate } = getDateRange(period, anchorDate);
+
+  return await db.getAllAsync<ExpenseListItem>(
+    `
+    SELECT
+      e.id,
+      e.title,
+      e.amount,
+      e.categoryId,
+      e.paymentMethod,
+      e.accountId,
+      e.note,
+      e.expenseDate,
+      e.type,
+      e.isFavorite,
+      e.recurringGroupId,
+      e.isRecurring,
+      c.name as categoryName,
+      c.icon as categoryIcon,
+      a.name as accountName,
+      a.icon as accountIcon,
+      a.lastFour as accountLastFour
+    FROM expenses e
+    LEFT JOIN categories c ON c.id = e.categoryId
+    LEFT JOIN accounts a ON a.id = e.accountId
+    WHERE (
+        (? IS NULL AND e.accountId IS NOT NULL)
+        OR e.accountId = ?
+      )
+      AND datetime(e.expenseDate) BETWEEN datetime(?) AND datetime(?)
+    ORDER BY datetime(e.expenseDate) DESC
+    `,
+    [accountId, accountId, startDate, endDate]
+  );
+}
+
 /**
  * Category analytics for ALL records.
  */
@@ -498,6 +563,7 @@ export async function getRecentRecords(
       e.amount,
       e.categoryId,
       e.paymentMethod,
+      e.accountId,
       e.note,
       e.expenseDate,
       e.type,
@@ -505,9 +571,13 @@ export async function getRecentRecords(
       e.recurringGroupId,
       e.isRecurring,
       c.name as categoryName,
-      c.icon as categoryIcon
+      c.icon as categoryIcon,
+      a.name as accountName,
+      a.icon as accountIcon,
+      a.lastFour as accountLastFour
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
+    LEFT JOIN accounts a ON a.id = e.accountId
     ORDER BY e.id DESC
     LIMIT ?
     `,
@@ -551,6 +621,7 @@ export async function getFavoriteRecords(
       e.amount,
       e.categoryId,
       e.paymentMethod,
+      e.accountId,
       e.note,
       e.expenseDate,
       e.type,
@@ -558,9 +629,13 @@ export async function getFavoriteRecords(
       e.recurringGroupId,
 e.isRecurring,
       c.name as categoryName,
-      c.icon as categoryIcon
+      c.icon as categoryIcon,
+      a.name as accountName,
+      a.icon as accountIcon,
+      a.lastFour as accountLastFour
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
+    LEFT JOIN accounts a ON a.id = e.accountId
     WHERE e.isFavorite = 1
       AND e.type = ?
     ORDER BY e.title ASC
@@ -624,6 +699,7 @@ export async function getRecurringGroups(): Promise<any[]> {
       e.amount,
       e.categoryId,
       e.paymentMethod,
+      e.accountId,
       e.note,
       e.expenseDate,
       e.type,
@@ -634,12 +710,16 @@ export async function getRecurringGroups(): Promise<any[]> {
 
       c.name as categoryName,
       c.icon as categoryIcon,
+      a.name as accountName,
+      a.icon as accountIcon,
+      a.lastFour as accountLastFour,
 
       COUNT(*) as totalRecords,
       MIN(e.expenseDate) as firstDate,
       MAX(e.expenseDate) as lastDate
     FROM expenses e
     LEFT JOIN categories c ON c.id = e.categoryId
+    LEFT JOIN accounts a ON a.id = e.accountId
     WHERE e.isRecurring = 1
       AND e.recurringGroupId IS NOT NULL
     GROUP BY e.recurringGroupId
@@ -679,6 +759,7 @@ export async function updateFutureRecurringRecords(
   amount: number,
   categoryId: number,
   paymentMethod: string,
+  accountId: number | null,
   note: string,
   type: "EXPENSE" | "INCOME"
 ): Promise<void> {
@@ -692,6 +773,7 @@ export async function updateFutureRecurringRecords(
       amount = ?,
       categoryId = ?,
       paymentMethod = ?,
+      accountId = ?,
       note = ?,
       type = ?
     WHERE recurringGroupId = ?
@@ -702,6 +784,7 @@ export async function updateFutureRecurringRecords(
       amount,
       categoryId,
       paymentMethod,
+      accountId,
       note,
       type,
       recurringGroupId,
@@ -719,6 +802,7 @@ export async function updateAllRecurringRecords(
   amount: number,
   categoryId: number,
   paymentMethod: string,
+  accountId: number | null,
   note: string,
   type: "EXPENSE" | "INCOME"
 ): Promise<void> {
@@ -732,11 +816,12 @@ export async function updateAllRecurringRecords(
       amount = ?,
       categoryId = ?,
       paymentMethod = ?,
+      accountId = ?,
       note = ?,
       type = ?
     WHERE recurringGroupId = ?
     `,
-    [title, amount, categoryId, paymentMethod, note, type, recurringGroupId]
+    [title, amount, categoryId, paymentMethod, accountId, note, type, recurringGroupId]
   );
 }
 

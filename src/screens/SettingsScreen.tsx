@@ -22,6 +22,7 @@ export default function SettingsScreen({ navigation }: Props) {
   <View style={styles.card}>
         <MenuItem icon="📋" title="Records" subtitle="View all income and expenses" onPress={() => navigation.navigate("Expenses")} />
         <MenuItem icon="🏷️" title="Categories" subtitle="Manage income and expense categories" onPress={() => navigation.navigate("Categories")} />
+        <MenuItem icon="💳" title="Accounts & Payment Sources" subtitle="Manage cards, banks, cash, and payment apps" onPress={() => navigation.navigate("Accounts")} />
      <MenuItem
   icon="🔁"
   title="Recurring Transactions"

@@ -198,7 +198,7 @@ async function handleToggleBiometric() {
 
   const savedValue = await isBiometricEnabled();
 
-  console.log("After save biometric:", savedValue);
+
 
   setBiometricEnabled(savedValue);
 

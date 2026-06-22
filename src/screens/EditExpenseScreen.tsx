@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -12,11 +12,16 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 
 import AppScreen from "../components/AppScreen";
 import { useAppTheme } from "../context/ThemeContext";
-import { Category, TransactionType } from "../types";
+import { Account, Category, TransactionType } from "../types";
 import { getCategoriesByType } from "../services/categoryService";
+import {
+  getAccountById,
+  getActiveAccounts,
+} from "../services/accountService";
 import {
   getExpenseById,
   updateAllRecurringRecords,
@@ -55,6 +60,10 @@ export default function EditExpenseScreen({ route, navigation }: Props) {
   const styles = createStyles(colors, isDark);
 
 const { expenseId, updateScope } = route.params;
+  const preserveLoadedAccountRef = useRef<{
+    paymentMethod: string;
+    accountId: number | null;
+  } | null>(null);
   const [transactionType, setTransactionType] =
     useState<TransactionType>("EXPENSE");
 
@@ -62,14 +71,18 @@ const { expenseId, updateScope } = route.params;
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
+  const [accountId, setAccountId] = useState<number | null>(null);
   const [note, setNote] = useState("");
 
   const [expenseDate, setExpenseDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringGroupId, setRecurringGroupId] = useState<string | null>(null);
@@ -81,6 +94,53 @@ const { expenseId, updateScope } = route.params;
   useEffect(() => {
     loadCategories(transactionType);
   }, [transactionType]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!accountsLoaded) return;
+
+      async function refreshAccounts() {
+        const activeAccounts = await getActiveAccounts();
+        const selectedIsActive = activeAccounts.some(
+          (account) => account.id === accountId
+        );
+        const selectedArchivedAccount =
+          accountId && !selectedIsActive
+            ? await getAccountById(accountId)
+            : null;
+
+        setAccounts(
+          selectedArchivedAccount
+            ? [...activeAccounts, selectedArchivedAccount]
+            : activeAccounts
+        );
+      }
+
+      refreshAccounts();
+    }, [accountsLoaded, accountId])
+  );
+
+  useEffect(() => {
+    if (!accountsLoaded) return;
+
+    const preservedSelection = preserveLoadedAccountRef.current;
+    if (
+      preservedSelection?.paymentMethod === paymentMethod &&
+      preservedSelection.accountId === accountId
+    ) {
+      preserveLoadedAccountRef.current = null;
+      return;
+    }
+    preserveLoadedAccountRef.current = null;
+
+    const selectedAccount = accounts.find((item) => item.id === accountId);
+    if (selectedAccount?.paymentMethod === paymentMethod) return;
+
+    const defaultAccount = accounts.find(
+      (item) => item.paymentMethod === paymentMethod && item.isDefault === 1
+    );
+    setAccountId(defaultAccount?.id ?? null);
+  }, [paymentMethod, accounts, accountsLoaded]);
 
   /**
    * Load categories for selected transaction type.
@@ -98,7 +158,10 @@ const { expenseId, updateScope } = route.params;
    * Load existing record data.
    */
   async function loadData() {
-    const record: any = await getExpenseById(expenseId);
+    const [record, activeAccountData]: [any, Account[]] = await Promise.all([
+      getExpenseById(expenseId),
+      getActiveAccounts(),
+    ]);
 
     if (!record) {
       Alert.alert("Not found", "Record not found.");
@@ -107,12 +170,25 @@ const { expenseId, updateScope } = route.params;
     }
 
     const type: TransactionType = record.type ?? "EXPENSE";
+    preserveLoadedAccountRef.current = {
+      paymentMethod: record.paymentMethod || "Credit Card",
+      accountId: record.accountId ?? null,
+    };
+    const archivedAccount =
+      record.accountId &&
+      !activeAccountData.some((account) => account.id === record.accountId)
+        ? await getAccountById(record.accountId)
+        : null;
+    const accountData = archivedAccount
+      ? [...activeAccountData, archivedAccount]
+      : activeAccountData;
 
     setTransactionType(type);
     setTitle(record.title);
     setAmount(String(record.amount));
     setCategoryId(record.categoryId);
     setPaymentMethod(record.paymentMethod || "Credit Card");
+    setAccountId(record.accountId ?? null);
     setNote(record.note ?? "");
     setExpenseDate(new Date(record.expenseDate));
 
@@ -121,6 +197,8 @@ const { expenseId, updateScope } = route.params;
 
     const categoryData = await getCategoriesByType(type);
     setCategories(categoryData);
+    setAccounts(accountData);
+    setAccountsLoaded(true);
   }
 
   /**
@@ -160,6 +238,7 @@ const { expenseId, updateScope } = route.params;
       amountNumber,
       categoryId,
       paymentMethod,
+      accountId,
       note.trim(),
       expenseDate.toISOString(),
       transactionType
@@ -184,6 +263,7 @@ const { expenseId, updateScope } = route.params;
       amountNumber,
       categoryId,
       paymentMethod,
+      accountId,
       note.trim(),
       transactionType
     );
@@ -206,6 +286,7 @@ const { expenseId, updateScope } = route.params;
       amountNumber,
       categoryId,
       paymentMethod,
+      accountId,
       note.trim(),
       transactionType
     );
@@ -261,6 +342,10 @@ const { expenseId, updateScope } = route.params;
 }
 
   const selectedCategory = categories.find((item) => item.id === categoryId);
+  const selectedAccount = accounts.find((item) => item.id === accountId);
+  const paymentAccounts = accounts.filter(
+    (item) => item.paymentMethod === paymentMethod
+  );
 
   return (
     <AppScreen>
@@ -292,6 +377,8 @@ const { expenseId, updateScope } = route.params;
             onPress={() => {
               setTransactionType("EXPENSE");
               setCategoryId(null);
+              setPaymentMethod("Credit Card");
+              setAccountId(null);
             }}
           >
             <Text
@@ -314,6 +401,8 @@ const { expenseId, updateScope } = route.params;
             onPress={() => {
               setTransactionType("INCOME");
               setCategoryId(null);
+              setPaymentMethod("Bank Transfer");
+              setAccountId(null);
             }}
           >
             <Text
@@ -373,6 +462,36 @@ const { expenseId, updateScope } = route.params;
         >
           <Text style={styles.selectorText}>{paymentMethod}</Text>
           <Text style={styles.selectorArrow}>▼</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.label}>
+          {transactionType === "INCOME" ? "Deposit To" : "Account"}
+        </Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.selectorButton}
+          onPress={() => {
+            if (paymentAccounts.length === 0) {
+              navigation.navigate("Accounts");
+              return;
+            }
+            setShowAccountModal(true);
+          }}
+        >
+          <Text style={styles.selectorText}>
+            {selectedAccount
+              ? `${selectedAccount.icon} ${selectedAccount.name}${
+                  selectedAccount.lastFour
+                    ? ` •••• ${selectedAccount.lastFour}`
+                    : ""
+                }`
+              : paymentAccounts.length === 0
+              ? `Add a ${paymentMethod} account`
+              : "Select Account (optional)"}
+          </Text>
+          <Text style={styles.selectorArrow}>
+            {paymentAccounts.length === 0 ? "+" : "▼"}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.label}>Date</Text>
@@ -493,6 +612,60 @@ const { expenseId, updateScope } = route.params;
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={() => setShowPaymentModal(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAccountModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select Account</Text>
+
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                setAccountId(null);
+                setShowAccountModal(false);
+              }}
+            >
+              <Text style={styles.modalItemText}>No specific account</Text>
+            </TouchableOpacity>
+
+            {paymentAccounts.map((account) => (
+              <TouchableOpacity
+                key={account.id}
+                style={styles.modalItem}
+                onPress={() => {
+                  setAccountId(account.id);
+                  setShowAccountModal(false);
+                }}
+              >
+                <Text style={styles.modalItemText}>
+                  {account.icon} {account.name}
+                  {account.lastFour ? ` •••• ${account.lastFour}` : ""}
+                  {account.isDefault === 1 ? " • Default" : ""}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                setShowAccountModal(false);
+                navigation.navigate("Accounts");
+              }}
+            >
+              <Text style={[styles.modalItemText, { color: colors.accent }]}>
+                + Manage Accounts
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowAccountModal(false)}
             >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>

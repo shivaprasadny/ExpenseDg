@@ -22,12 +22,25 @@ export async function initDatabase() {
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      paymentMethod TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT '',
+      lastFour TEXT NOT NULL DEFAULT '',
+      icon TEXT NOT NULL DEFAULT '💳',
+      isDefault INTEGER NOT NULL DEFAULT 0,
+      isArchived INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       amount REAL NOT NULL,
       categoryId INTEGER NOT NULL,
       paymentMethod TEXT NOT NULL DEFAULT 'Cash',
+      accountId INTEGER,
       note TEXT,
       expenseDate TEXT NOT NULL,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -36,7 +49,8 @@ export async function initDatabase() {
       recurringGroupId TEXT,
       isRecurring INTEGER DEFAULT 0,
       recurringStatus TEXT DEFAULT 'ACTIVE',
-      FOREIGN KEY (categoryId) REFERENCES categories(id)
+      FOREIGN KEY (categoryId) REFERENCES categories(id),
+      FOREIGN KEY (accountId) REFERENCES accounts(id)
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -96,6 +110,13 @@ async function runMigrations() {
   try {
     await db.execAsync(`
       ALTER TABLE expenses ADD COLUMN type TEXT DEFAULT 'EXPENSE';
+    `);
+  } catch {}
+
+  // Specific card/bank/payment source for a transaction
+  try {
+    await db.execAsync(`
+      ALTER TABLE expenses ADD COLUMN accountId INTEGER;
     `);
   } catch {}
 
@@ -282,6 +303,7 @@ export async function resetDatabase() {
 
   await db.execAsync(`
     DELETE FROM expenses;
+    DELETE FROM accounts;
     DELETE FROM categories;
     DELETE FROM settings;
     DELETE FROM profile;
@@ -302,6 +324,7 @@ export async function clearDatabase() {
 
   await db.execAsync(`
     DELETE FROM expenses;
+    DELETE FROM accounts;
     DELETE FROM categories;
     DELETE FROM settings;
     DELETE FROM profile;

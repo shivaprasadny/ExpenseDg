@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Alert,
   FlatList,
@@ -10,6 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -17,8 +19,9 @@ import { useRoute } from "@react-navigation/native";
 
 import AppScreen from "../components/AppScreen";
 import { useAppTheme } from "../context/ThemeContext";
-import { Category, TransactionType } from "../types";
+import { Account, Category, TransactionType } from "../types";
 import { getCategoriesByType } from "../services/categoryService";
+import { getActiveAccounts } from "../services/accountService";
 import {
   addExpense,
   ExpenseListItem,
@@ -60,6 +63,10 @@ export default function AddExpenseScreen({ navigation }: Props) {
 
   const route = useRoute<any>();
   const duplicateRecord = route.params?.duplicateRecord;
+  const preserveAccountSelectionRef = useRef<{
+    paymentMethod: string;
+    accountId: number | null;
+  } | null>(null);
 
   const [transactionType, setTransactionType] =
     useState<TransactionType>("EXPENSE");
@@ -68,18 +75,22 @@ export default function AddExpenseScreen({ navigation }: Props) {
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
+  const [accountId, setAccountId] = useState<number | null>(null);
   const [note, setNote] = useState("");
 
   const [expenseDate, setExpenseDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [recentRecords, setRecentRecords] = useState<ExpenseListItem[]>([]);
   const [favoriteRecords, setFavoriteRecords] = useState<ExpenseListItem[]>([]);
 
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [repeatInterval, setRepeatInterval] = useState("1");
@@ -96,6 +107,8 @@ export default function AddExpenseScreen({ navigation }: Props) {
     loadCategories();
   }, [transactionType]);
 
+
+
   /**
    * Load quick add records when type changes.
    */
@@ -103,6 +116,47 @@ export default function AddExpenseScreen({ navigation }: Props) {
     loadRecentRecords();
     loadFavoriteRecords();
   }, [transactionType]);
+
+  useFocusEffect(
+    useCallback(() => {
+      getActiveAccounts().then((data) => {
+        setAccounts(data);
+        setAccountsLoaded(true);
+      });
+    }, [])
+  );
+
+  /**
+   * Keep the selected account compatible with the payment method.
+   * Fresh records use the default account for that method when available.
+   */
+  useEffect(() => {
+    if (!accountsLoaded) {
+      return;
+    }
+
+    const preservedSelection = preserveAccountSelectionRef.current;
+    if (
+      preservedSelection?.paymentMethod === paymentMethod &&
+      preservedSelection.accountId === accountId
+    ) {
+      preserveAccountSelectionRef.current = null;
+      return;
+    }
+    preserveAccountSelectionRef.current = null;
+
+    const selectedAccount = accounts.find((item) => item.id === accountId);
+
+    if (selectedAccount?.paymentMethod === paymentMethod) {
+      return;
+    }
+
+    const defaultAccount = accounts.find(
+      (item) => item.paymentMethod === paymentMethod && item.isDefault === 1
+    );
+
+    setAccountId(defaultAccount?.id ?? null);
+  }, [paymentMethod, accounts, accountsLoaded]);
 
  /**
  * Set better default payment method when switching type.
@@ -127,10 +181,15 @@ useEffect(() => {
    */
 useEffect(() => {
   if (duplicateRecord) {
+    preserveAccountSelectionRef.current = {
+      paymentMethod: duplicateRecord.paymentMethod,
+      accountId: duplicateRecord.accountId ?? null,
+    };
     setTitle(duplicateRecord.title);
     setAmount(String(duplicateRecord.amount));
     setCategoryId(duplicateRecord.categoryId);
     setPaymentMethod(duplicateRecord.paymentMethod);
+    setAccountId(duplicateRecord.accountId ?? null);
     setNote(duplicateRecord.note || "");
     setTransactionType(duplicateRecord.type);
 
@@ -196,11 +255,16 @@ async function loadRecentRecords() {
    * New record date becomes today.
    */
   function prefillFromRecord(record: ExpenseListItem) {
+    preserveAccountSelectionRef.current = {
+      paymentMethod: record.paymentMethod,
+      accountId: record.accountId ?? null,
+    };
     setTransactionType(record.type);
     setTitle(record.title);
     setAmount(String(record.amount));
     setCategoryId(record.categoryId);
     setPaymentMethod(record.paymentMethod);
+    setAccountId(record.accountId ?? null);
     setNote(record.note || "");
     setExpenseDate(new Date());
     setIsRecurring(false);
@@ -312,6 +376,7 @@ async function loadRecentRecords() {
         amount: amountNumber,
         categoryId,
         paymentMethod,
+        accountId,
         note: note.trim(),
         expenseDate: date.toISOString(),
         type: transactionType,
@@ -335,6 +400,10 @@ await loadFavoriteRecords();
   }
 
   const selectedCategory = categories.find((item) => item.id === categoryId);
+  const selectedAccount = accounts.find((item) => item.id === accountId);
+  const paymentAccounts = accounts.filter(
+    (item) => item.paymentMethod === paymentMethod
+  );
 
   return (
     <AppScreen>
@@ -353,6 +422,7 @@ await loadFavoriteRecords();
   setTransactionType("EXPENSE");
   setCategoryId(null);
   setPaymentMethod("Credit Card");
+  setAccountId(null);
 }}
           >
             <Text
@@ -376,6 +446,7 @@ await loadFavoriteRecords();
   setTransactionType("INCOME");
   setCategoryId(null);
   setPaymentMethod("Bank Transfer");
+  setAccountId(null);
 }}
           >
             <Text
@@ -449,6 +520,7 @@ await loadFavoriteRecords();
                     <Text style={styles.quickTitle}>⭐ {record.title}</Text>
                     <Text style={styles.quickMeta}>
                       {record.categoryName} • {record.paymentMethod}
+                      {record.accountName ? ` • ${record.accountName}` : ""}
                     </Text>
                   </View>
 
@@ -482,6 +554,7 @@ await loadFavoriteRecords();
                     </Text>
                     <Text style={styles.quickMeta}>
                       {record.categoryName} • {record.paymentMethod}
+                      {record.accountName ? ` • ${record.accountName}` : ""}
                     </Text>
                   </View>
 
@@ -541,6 +614,37 @@ await loadFavoriteRecords();
         >
           <Text style={styles.selectorText}>{paymentMethod}</Text>
           <Text style={styles.selectorArrow}>▼</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.label}>
+          {transactionType === "INCOME" ? "Deposit To" : "Account"}
+        </Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.selectorButton}
+          onPress={() => {
+            if (paymentAccounts.length === 0) {
+              navigation.navigate("Accounts");
+              return;
+            }
+
+            setShowAccountModal(true);
+          }}
+        >
+          <Text style={styles.selectorText}>
+            {selectedAccount
+              ? `${selectedAccount.icon} ${selectedAccount.name}${
+                  selectedAccount.lastFour
+                    ? ` •••• ${selectedAccount.lastFour}`
+                    : ""
+                }`
+              : paymentAccounts.length === 0
+              ? `Add a ${paymentMethod} account`
+              : "Select Account (optional)"}
+          </Text>
+          <Text style={styles.selectorArrow}>
+            {paymentAccounts.length === 0 ? "+" : "▼"}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.label}>Date</Text>
@@ -816,6 +920,60 @@ await loadFavoriteRecords();
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={() => setShowPaymentModal(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAccountModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select Account</Text>
+
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                setAccountId(null);
+                setShowAccountModal(false);
+              }}
+            >
+              <Text style={styles.modalItemText}>No specific account</Text>
+            </TouchableOpacity>
+
+            {paymentAccounts.map((account) => (
+              <TouchableOpacity
+                key={account.id}
+                style={styles.modalItem}
+                onPress={() => {
+                  setAccountId(account.id);
+                  setShowAccountModal(false);
+                }}
+              >
+                <Text style={styles.modalItemText}>
+                  {account.icon} {account.name}
+                  {account.lastFour ? ` •••• ${account.lastFour}` : ""}
+                  {account.isDefault === 1 ? " • Default" : ""}
+                </Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={styles.modalItem}
+              onPress={() => {
+                setShowAccountModal(false);
+                navigation.navigate("Accounts");
+              }}
+            >
+              <Text style={[styles.modalItemText, { color: colors.accent }]}>
+                + Manage Accounts
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowAccountModal(false)}
             >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>

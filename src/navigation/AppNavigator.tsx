@@ -18,6 +18,8 @@ import AboutScreen from "../screens/AboutScreen";
 import SecurityScreen from "../screens/SecurityScreen";
 import NotificationSettingsScreen from "../screens/NotificationSettingsScreen";
 import RecurringScreen from "../screens/RecurringScreen";
+import AccountsScreen from "../screens/AccountsScreen";
+import AccountTransactionsScreen from "../screens/AccountTransactionsScreen";
 
 /**
  * All app screen names and params.
@@ -32,6 +34,7 @@ export type RootStackParamList = {
           amount: number;
           categoryId: number;
           paymentMethod: string;
+          accountId?: number | null;
           note?: string;
           type: "EXPENSE" | "INCOME";
           isRecurring?: boolean;
@@ -53,6 +56,8 @@ export type RootStackParamList = {
  
 
   Categories: undefined;
+  Accounts: undefined;
+  AccountTransactions: { accountId?: number } | undefined;
   Budget: undefined;
   Analytics: undefined;
   Settings: undefined;
@@ -80,6 +85,8 @@ export default function AppNavigator() {
         <Stack.Screen name="EditExpense" component={EditExpenseScreen} options={{ title: "Edit Record" }} />
         <Stack.Screen name="Expenses" component={ExpensesScreen} options={{ title: "Records" }} />
         <Stack.Screen name="Categories" component={CategoriesScreen} options={{ title: "Categories" }} />
+        <Stack.Screen name="Accounts" component={AccountsScreen} options={{ title: "Accounts & Payment Sources" }} />
+        <Stack.Screen name="AccountTransactions" component={AccountTransactionsScreen} options={{ title: "Account Transactions" }} />
         <Stack.Screen name="Budget" component={BudgetScreen} options={{ title: "Budget" }} />
         <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: "Analytics" }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
